@@ -516,10 +516,11 @@ export const intentIqIdSubmodule = {
             }
 
             if (respJson.data?.eids) {
-              runtimeEids = respJson.data.eids
+              runtimeEids = respJson.data.eids;
               callback(respJson.data.eids);
-              firePartnerCallback()
-              const encryptedData = encryptData(JSON.stringify(respJson.data.eids))
+              logInfo('INTENTIQ: Callback fired with eids');
+              firePartnerCallback();
+              const encryptedData = encryptData(JSON.stringify(respJson.data.eids));
               partnerData.data = encryptedData;
             } else {
               callback();
