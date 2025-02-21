@@ -120,18 +120,6 @@ function verifyIdType(value) {
   if (value === 0 || value === 1 || value === 3 || value === 4) return value; else return -1;
 }
 
-function getCurrentUrl() {
-  try {
-    if (window.self === window.top) {
-      return window.location.href;
-    } else {
-      return window.top.location.href;
-    }
-  } catch (error) {
-    return '';
-  }
-}
-
 function createPixelUrl(firstPartyData, clientHints) {
   const cmpData = getCmpData();
   const deviceInfo = collectDeviceInfo()
