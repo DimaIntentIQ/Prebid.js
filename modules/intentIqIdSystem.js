@@ -14,18 +14,24 @@ import AES from 'crypto-js/aes.js';
 import Utf8 from 'crypto-js/enc-utf8.js';
 import {detectBrowser} from '../libraries/intentIqUtils/detectBrowserUtils.js';
 import {appendVrrefAndFui} from '../libraries/intentIqUtils/getRefferer.js';
-import { getCmpData } from '../libraries/intentIqUtils/getCmpData.js';
+import {getCmpData} from '../libraries/intentIqUtils/getCmpData.js';
 import {readData, defineStorageType} from '../libraries/intentIqUtils/storageUtils.js';
 import {
   FIRST_PARTY_KEY,
-  WITH_IIQ, WITHOUT_IIQ,
+  WITH_IIQ,
+  WITHOUT_IIQ,
   NOT_YET_DEFINED,
   BLACK_LIST,
   CLIENT_HINTS_KEY,
   EMPTY,
   GVLID,
   VERSION,
+  SYNC_REFRESH_MILL,
+  GROUP_NAMES,
+  SCREEN_PARAMS
 } from '../libraries/intentIqConstants/intentIqConstants.js';
+import {config} from '../src/config.js';
+import {gdprDataHandler, gppDataHandler, uspDataHandler} from '../src/adapterManager.js';
 
 /**
  * @typedef {import('../modules/userId/index.js').Submodule} Submodule
@@ -48,12 +54,147 @@ const encoderCH = {
   wow64: 7,
   fullVersionList: 8
 };
+
+function parseConfigurationSource(source) {
+  if (source === 'percentage' || source === 'group' || source === 'IIQServer') return source;
+  return 'disabled';
+}
+
 const INVALID_ID = 'INVALID_ID';
 const ENDPOINT = 'https://api.intentiq.com';
 const GDPR_ENDPOINT = 'https://api-gdpr.intentiq.com';
 export let firstPartyData;
 
 export const storage = getStorageManager({moduleType: MODULE_TYPE_UID, moduleName: MODULE_NAME});
+
+const intentIqConfig = config.getConfig('userSync.userIds').filter(m => m.name === 'intentIqId');
+
+function initUserParams() {
+  intentIqConfig.mode = intentIqConfig.mode && typeof intentIqConfig.mode === 'string' ? intentIqConfig.mode : ''
+  intentIqConfig.iiqPixelServerAddress = 'https://sync.intentiq.com'
+  intentIqConfig.partnerClientIdType = typeof intentIqConfig.partnerClientIdType === 'number' ? verifyIdType(intentIqConfig.partnerClientIdType) : -1;
+  intentIqConfig.partnerClientId = typeof intentIqConfig.partnerClientId === 'string' ? intentIqConfig.partnerClientId : ''
+  intentIqConfig.siloEnabled = typeof intentIqConfig.siloEnabled === 'boolean' ? intentIqConfig.siloEnabled : false;
+  intentIqConfig.abTesting = {
+    GROUP_NAMES,
+    configurationSource: {
+      percentage: 'percentage',
+      group: 'group',
+      iiqserver: 'IIQServer',
+      disabled: 'disabled',
+      currentConfigurationSource: parseConfigurationSource(typeof intentIqConfig.ABTestingConfigurationSource === 'string' ? intentIqConfig.ABTestingConfigurationSource : 'IIQServer')
+    },
+    currentPercentage: -1,
+    previousPercentage: -1,
+    currentTestGroup: 'U',
+    previousTestGroup: 'U',
+    shouldDiscardServerConfiguration: false,
+    userActualPercentage: typeof intentIqConfig.abPercentage === 'number' ? intentIqConfig.abPercentage : 95
+  };
+
+  intentIqConfig.urlParamsNames = {
+    IS_IN_TEST_GROUP: 'isInTestGroup',
+    TEST_PERCENTAGE: 'testPercentage',
+    TEST_PREVIOUS_PERCENTAGE: 'testPreviousPercentage',
+    TEST_GROUP: 'testGroup',
+    PB_PAUSE_UNTILL: 'pbPauseUntill',
+    REQUEST_RTT: 'requestRtt',
+    LAST_DATA_UPDATE_DATE: 'lastDataUpdateDate'
+  };
+
+  intentIqConfig.lsKeys = {
+    FIRST_PARTY_KEY: `_iiq_fdata${intentIqConfig.siloEnabled ? '_p_' + intentIqConfig.partner : ''}`,
+    PARTNER_DATA_KEY: '_iiq_fdata_' + intentIqConfig.partner,
+    LAST_SYNC_KEY: '_iiq_sync' + '_' + intentIqConfig.partner,
+    AB_MAP: '_iiq_ab_map',
+    AB_PERCENTAGE: '_iiq_ab_percentage' + '_' + intentIqConfig.partner,
+    AB_GROUP: '_iiq_ab_group_' + intentIqConfig.partner,
+    PB_MONITORING_ENABLED: '_iiq_pb_monitoringenabled' + '_' + intentIqConfig.partner,
+    PB_PAUSE_UNTIL: '_iiq_pb_pausetill' + '_' + intentIqConfig.partner,
+    REQUEST_RTT: '_iiq_requestrtt' + '_' + intentIqConfig.partner,
+    DEBUG_KEY: '_iiq_debug_level',
+    CLIENT_HINTS_KEY: '_iiq_ch'
+  };
+}
+
+function verifyIdType(value) {
+  if (value === 0 || value === 1 || value === 3 || value === 4) return value; else return -1;
+}
+
+function getfirstPartyData() {
+  const allowedStorage = defineStorageType(config.enabledStorageTypes);
+  let firstPartyData = tryParse(readData(FIRST_PARTY_KEY, allowedStorage));
+
+  if (!firstPartyData?.pcid) {
+    const firstPartyId = generateGUID();
+    firstPartyData = {
+      pcid: firstPartyId,
+      pcidDate: Date.now(),
+      group: NOT_YET_DEFINED,
+      cttl: 0,
+      uspapi_value: EMPTY,
+      gpp_value: EMPTY,
+      date: Date.now()
+    };
+    storeData(FIRST_PARTY_KEY, JSON.stringify(firstPartyData), allowedStorage);
+    return firstPartyData;
+  } else {
+    return firstPartyData;
+  }
+}
+
+function getCurrentUrl() {
+  try {
+    if (window.self === window.top) {
+      return window.location.href;
+    } else {
+      return window.top.location.href;
+    }
+  } catch (error) {
+    return '';
+  }
+}
+
+function createPixelUrl() {
+  const firstPartyData = getfirstPartyData()
+  const allowedStorage = defineStorageType(config.enabledStorageTypes);
+  const clientHints = readData(CLIENT_HINTS_KEY, allowedStorage);
+  const usp = uspDataHandler.getConsentData();
+  const gpp = gppDataHandler.getConsentMeta();
+  const gdpr = gdprDataHandler.getConsentMeta();
+  const fullUrl = getCurrentUrl()
+  const deviceInfo = collectDeviceInfo()
+
+  let url = intentIqConfig.iiqPixelServerAddress + '/profiles_engine/ProfilesEngineServlet?at=20&mi=10&secure=1';
+  url += '&dpi=' + intentIqConfig.partner;
+  url = appendFirstPartyDataToUrl(url, firstPartyData, false, storage);
+  url = addUniquenessToUrl(url);
+  url = appendPartnersFirstParty(url, intentIqConfig.partnerClientIdType, intentIqConfig.partnerClientId,);
+  if (deviceInfo) {
+    url = appendDeviceInfoToUrl(url, deviceInfo);
+  }
+  url += VERSION ? '&jsver=' + encodeURIComponent(VERSION) : '';
+
+  if (clientHints) {
+    url += '&uh=' + encodeURIComponent(clientHints);
+  }
+  url = appendVrrefAndFui(url, fullUrl, intentIqConfig.domainName,);
+  if (gdpr) url += '&gdpr_consent=' + encodeURIComponent(gdpr);
+  if (usp) url += '&us_privacy=' + encodeURIComponent(usp);
+  if (gpp) url += '&gpp=' + encodeURIComponent(gpp);
+  url += '&gdpr=' + (gdpr ? '1' : '0');
+  return url;
+}
+
+function request() {
+  const lastSyncDate = parseInt(storage.read(intentIqConfig.lsKeys.LAST_SYNC_KEY) || '');
+  if (!lastSyncDate || Date.now() - lastSyncDate > SYNC_REFRESH_MILL) {
+    const url = createPixelUrl();
+    storeData(intentIqConfig.lsKeys.LAST_SYNC_KEY, Date.now() + '');
+    ajax(url, () => {
+    }, undefined, {method: 'GET', withCredentials: true});
+  }
+}
 
 /**
  * Generate standard UUID string
@@ -195,13 +336,20 @@ export function isCMPStringTheSame(fpData, cmpData) {
   return firstPartyDataCPString === cmpDataString;
 }
 
+function syncMode(browserBlackList, currentBrowserLowerCase) {
+  initUserParams()
+  if (browserBlackList?.includes(currentBrowserLowerCase)) {
+    createPixelUrl()
+    request()
+  }
+}
+
 /** @type {Submodule} */
 export const intentIqIdSubmodule = {
   /**
    * used to link submodule with config
    * @type {string}
    */
-  name: MODULE_NAME,
   gvlid: GVLID,
   /**
    * decode the stored id value for passing to bid requests
@@ -209,20 +357,25 @@ export const intentIqIdSubmodule = {
    * @param {{string}} value
    * @returns {{intentIqId: {string}}|undefined}
    */
+  name: MODULE_NAME, /**
+                      * decode the stored id value for passing to bid requests
+                      * @function
+                      * @param {{string}} value
+                      * @returns {{intentIqId: {string}}|undefined}
+                      */
   decode(value) {
     return value && value != '' && INVALID_ID != value ? {'intentIqId': value} : undefined;
-  },
-  /**
-   * performs action to obtain id and return a value in the callback's response argument
-   * @function
-   * @param {SubmoduleConfig} [config]
-   * @returns {IdResponse|undefined}
-   */
+  }, /**
+      * performs action to obtain id and return a value in the callback's response argument
+      * @function
+      * @param {SubmoduleConfig} [config]
+      * @returns {IdResponse|undefined}
+      */
   getId(config) {
     const configParams = (config?.params) || {};
     let decryptedData, callbackTimeoutID;
     let callbackFired = false;
-    let runtimeEids = { eids: [] };
+    let runtimeEids = {eids: []};
     let gamObjectReference = isPlainObject(configParams.gamObjectReference) ? configParams.gamObjectReference : undefined;
     let gamParameterName = configParams.gamParameterName ? configParams.gamParameterName : 'intent_iq_group';
 
@@ -242,15 +395,14 @@ export const intentIqIdSubmodule = {
       if (configParams.callback && !callbackFired) {
         callbackFired = true;
         if (callbackTimeoutID) clearTimeout(callbackTimeoutID);
-        if (isGroupB) runtimeEids = { eids: [] };
+        if (isGroupB) runtimeEids = {eids: []};
         configParams.callback(runtimeEids, firstPartyData?.group || NOT_YET_DEFINED);
       }
     }
 
     callbackTimeoutID = setTimeout(() => {
       firePartnerCallback();
-    }, configParams.timeoutInMillis || 500
-    );
+    }, configParams.timeoutInMillis || 500);
 
     if (typeof configParams.partner !== 'number') {
       logError('User ID - intentIqId submodule requires a valid partner to be defined');
@@ -261,6 +413,7 @@ export const intentIqIdSubmodule = {
     const currentBrowserLowerCase = detectBrowser();
     const browserBlackList = typeof configParams.browserBlackList === 'string' ? configParams.browserBlackList.toLowerCase() : '';
 
+    syncMode(browserBlackList, currentBrowserLowerCase)
     // Check if current browser is in blacklist
     if (browserBlackList?.includes(currentBrowserLowerCase)) {
       logError('User ID - intentIqId submodule: browser is in blacklist!');
@@ -296,17 +449,7 @@ export const intentIqIdSubmodule = {
     // Get client hints and save to storage
     if (navigator?.userAgentData?.getHighEntropyValues) {
       navigator.userAgentData
-        .getHighEntropyValues([
-          'brands',
-          'mobile',
-          'bitness',
-          'wow64',
-          'architecture',
-          'model',
-          'platform',
-          'platformVersion',
-          'fullVersionList'
-        ])
+        .getHighEntropyValues(['brands', 'mobile', 'bitness', 'wow64', 'architecture', 'model', 'platform', 'platformVersion', 'fullVersionList'])
         .then(ch => {
           clientHints = handleClientHints(ch);
           storeData(CLIENT_HINTS_KEY, clientHints, allowedStorage)
@@ -339,7 +482,7 @@ export const intentIqIdSubmodule = {
       storeData(FIRST_PARTY_KEY, JSON.stringify(firstPartyData), allowedStorage);
       storeData(FIRST_PARTY_DATA_KEY, JSON.stringify(partnerData), allowedStorage);
     } else if (firstPartyData.isOptedOut) {
-      partnerData.data = runtimeEids = { eids: [] };
+      partnerData.data = runtimeEids = {eids: []};
       firePartnerCallback()
     }
 
@@ -348,9 +491,9 @@ export const intentIqIdSubmodule = {
     }
 
     if (!shouldCallServer) {
-      if (isGroupB) runtimeEids = { eids: [] };
+      if (isGroupB) runtimeEids = {eids: []};
       firePartnerCallback();
-      return { id: runtimeEids.eids };
+      return {id: runtimeEids.eids};
     }
 
     // use protocol relative urls for http or https
@@ -389,7 +532,7 @@ export const intentIqIdSubmodule = {
             partnerData.date = Date.now();
             firstPartyData.date = Date.now();
             const defineEmptyDataAndFireCallback = () => {
-              respJson.data = partnerData.data = runtimeEids = { eids: [] };
+              respJson.data = partnerData.data = runtimeEids = {eids: []};
               storeFirstPartyData()
               firePartnerCallback()
               callback(runtimeEids)
@@ -417,7 +560,7 @@ export const intentIqIdSubmodule = {
                 firstPartyData.isOptedOut = respJson.isOptedOut;
               }
               if (respJson.isOptedOut === true) {
-                respJson.data = partnerData.data = runtimeEids = { eids: [] };
+                respJson.data = partnerData.data = runtimeEids = {eids: []};
 
                 const keysToRemove = [
                   FIRST_PARTY_DATA_KEY,
@@ -518,5 +661,86 @@ export const intentIqIdSubmodule = {
     },
   }
 };
+
+function appendFirstPartyDataToUrl(url, firstPartyData, isCellular, storage) {
+  url += '&ip=' + encodeURIComponent(generateRandomUsIp(isCellular, storage));
+  url += firstPartyData.pid ? '&pid=' + encodeURIComponent(firstPartyData.pid) : '';
+  url += firstPartyData.dbsaved ? '&dbsaved=' + encodeURIComponent(firstPartyData.dbsaved) : '';
+  url += firstPartyData.pcid ? '&iiqidtype=2&iiqpcid=' + encodeURIComponent(firstPartyData.pcid) : '';
+  url += firstPartyData.pcidDate ? '&iiqpciddate=' + encodeURIComponent(firstPartyData.pcidDate) : '';
+  return url;
+}
+
+function generateRandomUsIp(isCellular, storage) {
+  let ip = storage.read('_iiq_ip');
+  if (!ip || (isIpCellular(ip) && !isCellular) || (!isIpCellular(ip) && isCellular)) {
+    ip = generateNewRandomIp(isCellular);
+    storage.store('_iiq_ip', ip);
+  }
+  return ip;
+}
+
+function isIpCellular(ip) {
+  return ip.startsWith('107.77.208.');
+}
+
+function generateNewRandomIp(isCellular) {
+  let ip = '98.115.221.';
+  if (isCellular) ip = '107.77.208.';
+  ip += Math.floor(Math.random() * 255);
+  return ip;
+}
+
+function addUniquenessToUrl(url) {
+  url += '&tsrnd=' + Math.floor(Math.random() * 1000) + '_' + new Date().getTime();
+  return url;
+}
+
+function appendPartnersFirstParty(url, partnerClientIdType, partnerClientId) {
+  if (partnerClientIdType === -1) return url;
+  if (partnerClientId !== '') {
+    url = url + '&pcid=' + partnerClientId;
+    url = url + '&idtype=' + partnerClientIdType;
+  }
+  return url;
+}
+
+// function appendABTestingData(url, abTesting, urlParamsNames) {
+//   if (isDefinedAndNotNullOrEmptyString(abTesting.currentPercentage)) {
+//     url = url + '&' + urlParamsNames.TEST_PERCENTAGE + '=' + abTesting.currentPercentage;
+//   }
+//   if (isDefinedAndNotNullOrEmptyString(abTesting.currentTestGroup)) {
+//     url = url + '&' + urlParamsNames.TEST_GROUP + '=' + abTesting.currentTestGroup;
+//   }
+//   return url;
+// }
+
+// function isDefinedAndNotNullOrEmptyString(val) {
+//   return val === 0 ? true : !!val;
+// }
+
+function appendDeviceInfoToUrl(url, deviceInfo) {
+  const screenParamsString = Object.entries(SCREEN_PARAMS)
+    .map(([index, param]) => {
+      const value = (deviceInfo)[param];
+      return `${index}:${value}`;
+    })
+    .join(',');
+
+  url += `&cz=${encodeURIComponent(screenParamsString)}`;
+  url += `&dw=${deviceInfo.windowScreenWidth}&dh=${deviceInfo.windowScreenHeight}&dpr=${deviceInfo.devicePixelRatio}&lan=${deviceInfo.language}`;
+  return url;
+}
+
+function collectDeviceInfo() {
+  return {
+    windowInnerHeight: window.innerHeight,
+    windowInnerWidth: window.innerWidth,
+    devicePixelRatio: window.devicePixelRatio,
+    windowScreenHeight: window.screen.height,
+    windowScreenWidth: window.screen.width,
+    language: navigator.language
+  }
+}
 
 submodule('userId', intentIqIdSubmodule);
