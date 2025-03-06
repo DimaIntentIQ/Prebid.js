@@ -138,10 +138,9 @@ function createPixelUrl(firstPartyData, clientHints, configParams, partnerData, 
   return url;
 }
 
-function request(allowedStorage) {
+function request(allowedStorage, url) {
   const lastSyncDate = parseInt(readData(SYNC_KEY || '', allowedStorage));
   if (!lastSyncDate || Date.now() - lastSyncDate > SYNC_REFRESH_MILL) {
-    const url = createPixelUrl();
     storeData(SYNC_KEY, Date.now() + '', allowedStorage);
     ajax(url, () => {
     }, undefined, {method: 'GET', withCredentials: true});
@@ -149,8 +148,8 @@ function request(allowedStorage) {
 }
 
 function syncMode(firstPartyData, clientHints, allowedStorage, configParams, partnerData, cmpData) {
-  createPixelUrl(firstPartyData, clientHints, configParams, partnerData, cmpData)
-  request(allowedStorage)
+  const url = createPixelUrl(firstPartyData, clientHints, configParams, partnerData, cmpData)
+  request(allowedStorage, url)
 }
 
 /**
