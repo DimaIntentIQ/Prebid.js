@@ -6,11 +6,16 @@ import { getWindowTop, logError, getWindowLocation, getWindowSelf } from '../../
  */
 export function getReferrer() {
   try {
-    if (getWindowSelf() === getWindowTop()) {
-      return encodeURIComponent(getWindowLocation().href);
-    } else {
-      return encodeURIComponent(getWindowTop().location.href);
+    const url = getWindowSelf() === getWindowTop()
+      ? encodeURIComponent(getWindowLocation().href)
+      : encodeURIComponent(getWindowTop().location.href);
+
+    if (url.length >= 50) {
+      const { origin } = new URL(url);
+      return origin;
     }
+
+    return url;
   } catch (error) {
     logError(`Error accessing location: ${error}`);
     return '';
