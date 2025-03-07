@@ -22,8 +22,9 @@ import {
   CLIENT_HINTS_KEY,
   EMPTY,
   GVLID,
-  VERSION,
+  VERSION, INVALID_ID, GDPR_ENDPOINT, VR_ENDPOINT, SYNC_ENDPOINT, SCREEN_PARAMS, GDPR_SYNC_ENDPOINT, SYNC_REFRESH_MILL
 } from '../libraries/intentIqConstants/intentIqConstants.js';
+import {SYNC_KEY} from '../libraries/intentIqUtils/getSyncKey.js';
 
 /**
  * @typedef {import('../modules/userId/index.js').Submodule} Submodule
@@ -44,9 +45,7 @@ const encoderCH = {
   wow64: 7,
   fullVersionList: 8
 };
-const INVALID_ID = 'INVALID_ID';
-const ENDPOINT = 'https://api.intentiq.com';
-const GDPR_ENDPOINT = 'https://api-gdpr.intentiq.com';
+
 export let firstPartyData;
 
 /**
@@ -80,6 +79,78 @@ export function encryptData(plainText) {
 export function decryptData(encryptedText) {
   const bytes = AES.decrypt(encryptedText, MODULE_NAME);
   return bytes.toString(Utf8);
+}
+
+function collectDeviceInfo() {
+  return {
+    windowInnerHeight: window.innerHeight,
+    windowInnerWidth: window.innerWidth,
+    devicePixelRatio: window.devicePixelRatio,
+    windowScreenHeight: window.screen.height,
+    windowScreenWidth: window.screen.width,
+    language: navigator.language
+  }
+}
+
+function addUniquenessToUrl(url) {
+  url += '&tsrnd=' + Math.floor(Math.random() * 1000) + '_' + new Date().getTime();
+  return url;
+}
+
+function appendDeviceInfoToUrl(url, deviceInfo) {
+  const screenParamsString = Object.entries(SCREEN_PARAMS)
+    .map(([index, param]) => {
+      const value = (deviceInfo)[param];
+      return `${index}:${value}`;
+    })
+    .join(',');
+
+  url += `&cz=${encodeURIComponent(screenParamsString)}`;
+  url += `&dw=${deviceInfo.windowScreenWidth}&dh=${deviceInfo.windowScreenHeight}&dpr=${deviceInfo.devicePixelRatio}&lan=${deviceInfo.language}`;
+  return url;
+}
+
+function appendPartnersFirstParty(url, partnerData) {
+  if (partnerData?.clientType) {
+    url = url + '&idtype=' + partnerData.clientType;
+  }
+  return url;
+}
+
+function createPixelUrl(firstPartyData, clientHints, configParams, partnerData, cmpData) {
+  const deviceInfo = collectDeviceInfo()
+
+  let url = cmpData.gdprString ? GDPR_SYNC_ENDPOINT : SYNC_ENDPOINT + '/profiles_engine/ProfilesEngineServlet?at=20&mi=10&secure=1';
+  url += '&dpi=' + configParams.partner;
+  url += firstPartyData.pid ? '&pid=' + encodeURIComponent(firstPartyData.pid) : '';
+  url += firstPartyData.pcid ? '&iiqidtype=2&iiqpcid=' + encodeURIComponent(firstPartyData.pcid) : '';
+  url += firstPartyData.pcidDate ? '&iiqpciddate=' + encodeURIComponent(firstPartyData.pcidDate) : '';
+  url = addUniquenessToUrl(url);
+  url = appendPartnersFirstParty(url, partnerData);
+  if (deviceInfo) url = appendDeviceInfoToUrl(url, deviceInfo)
+  url += VERSION ? '&jsver=' + VERSION : '';
+  if (clientHints) url += '&uh=' + encodeURIComponent(clientHints);
+  url = appendVrrefAndFui(url, configParams.domainName);
+  if (cmpData.gdprString) url += '&gdpr_consent=' + encodeURIComponent(cmpData.gdprString);
+  if (cmpData.uspString) url += '&us_privacy=' + encodeURIComponent(cmpData.uspString);
+  if (cmpData.gppString) url += '&gpp=' + encodeURIComponent(cmpData.gppString);
+  url += '&gdpr=' + (cmpData.gdprString ? '1' : '0');
+  return url;
+}
+
+function request(allowedStorage) {
+  const lastSyncDate = parseInt(readData(SYNC_KEY || '', allowedStorage));
+  if (!lastSyncDate || Date.now() - lastSyncDate > SYNC_REFRESH_MILL) {
+    const url = createPixelUrl();
+    storeData(SYNC_KEY, Date.now() + '', allowedStorage);
+    ajax(url, () => {
+    }, undefined, {method: 'GET', withCredentials: true});
+  }
+}
+
+function syncMode(firstPartyData, clientHints, allowedStorage, configParams, partnerData, cmpData) {
+  createPixelUrl(firstPartyData, clientHints, configParams, partnerData, cmpData)
+  request(allowedStorage)
 }
 
 /**
@@ -161,6 +232,7 @@ export const intentIqIdSubmodule = {
   decode(value) {
     return value && value != '' && INVALID_ID != value ? {'intentIqId': value} : undefined;
   },
+
   /**
    * performs action to obtain id and return a value in the callback's response argument
    * @function
@@ -210,13 +282,6 @@ export const intentIqIdSubmodule = {
 
     const currentBrowserLowerCase = detectBrowser();
     const browserBlackList = typeof configParams.browserBlackList === 'string' ? configParams.browserBlackList.toLowerCase() : '';
-
-    // Check if current browser is in blacklist
-    if (browserBlackList?.includes(currentBrowserLowerCase)) {
-      logError('User ID - intentIqId submodule: browser is in blacklist!');
-      if (configParams.callback) configParams.callback('', BLACK_LIST);
-      return;
-    }
 
     if (!firstPartyData?.pcid) {
       const firstPartyId = generateGUID();
@@ -303,8 +368,16 @@ export const intentIqIdSubmodule = {
       return { id: runtimeEids.eids };
     }
 
+    // Check if current browser is in blacklist
+    if (browserBlackList?.includes(currentBrowserLowerCase)) {
+      logError('User ID - intentIqId submodule: browser is in blacklist!');
+      if (configParams.callback) configParams.callback('', BLACK_LIST);
+      syncMode(firstPartyData, clientHints, allowedStorage, configParams, partnerData, cmpData)
+      return
+    }
+
     // use protocol relative urls for http or https
-    let url = `${gdprDetected ? GDPR_ENDPOINT : ENDPOINT}/profiles_engine/ProfilesEngineServlet?at=39&mi=10&dpi=${configParams.partner}&pt=17&dpn=1`;
+    let url = `${gdprDetected ? GDPR_ENDPOINT : VR_ENDPOINT}/profiles_engine/ProfilesEngineServlet?at=39&mi=10&dpi=${configParams.partner}&pt=17&dpn=1`;
     url += configParams.pcid ? '&pcid=' + encodeURIComponent(configParams.pcid) : '';
     url += configParams.pai ? '&pai=' + encodeURIComponent(configParams.pai) : '';
     url += firstPartyData.pcid ? '&iiqidtype=2&iiqpcid=' + encodeURIComponent(firstPartyData.pcid) : '';
@@ -403,7 +476,7 @@ export const intentIqIdSubmodule = {
             }
 
             if ('ct' in respJson) {
-              partnerData.ct = respJson.ct;
+              partnerData.clientType = respJson.ct;
             }
 
             if ('sid' in respJson) {
