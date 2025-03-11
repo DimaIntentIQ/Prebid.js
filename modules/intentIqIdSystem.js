@@ -110,11 +110,20 @@ function appendDeviceInfoToUrl(url, deviceInfo) {
   return url;
 }
 
-function appendPartnersFirstParty(url, partnerData) {
-  if (partnerData?.clientType) {
-    url = url + '&idtype=' + partnerData.clientType;
-  }
-  return url;
+function appendFirstPartyData (url, firstPartyData, partnerData) {
+  url += firstPartyData.pid ? '&pid=' + encodeURIComponent(firstPartyData.pid) : '';
+  url += firstPartyData.pcid ? '&iiqidtype=2&iiqpcid=' + encodeURIComponent(firstPartyData.pcid) : '';
+  url += firstPartyData.pcidDate ? '&iiqpciddate=' + encodeURIComponent(firstPartyData.pcidDate) : '';
+  return url
+}
+
+function appendCMPData (url, cmpData) {
+  url += cmpData.uspString ? '&us_privacy=' + encodeURIComponent(cmpData.uspString) : '';
+  url += cmpData.gppString ? '&gpp=' + encodeURIComponent(cmpData.gppString) : '';
+  url += cmpData.gdprApplies
+    ? '&gdpr_consent=' + encodeURIComponent(cmpData.gdprString) + '&gdpr=1'
+    : '&gdpr=0';
+  return url
 }
 
 function createPixelUrl(firstPartyData, clientHints, configParams, partnerData, cmpData) {
@@ -122,34 +131,24 @@ function createPixelUrl(firstPartyData, clientHints, configParams, partnerData, 
 
   let url = cmpData.gdprString ? GDPR_SYNC_ENDPOINT : SYNC_ENDPOINT + '/profiles_engine/ProfilesEngineServlet?at=20&mi=10&secure=1';
   url += '&dpi=' + configParams.partner;
-  url += firstPartyData.pid ? '&pid=' + encodeURIComponent(firstPartyData.pid) : '';
-  url += firstPartyData.pcid ? '&iiqidtype=2&iiqpcid=' + encodeURIComponent(firstPartyData.pcid) : '';
-  url += firstPartyData.pcidDate ? '&iiqpciddate=' + encodeURIComponent(firstPartyData.pcidDate) : '';
+  url = appendFirstPartyData(url, firstPartyData, partnerData);
   url = addUniquenessToUrl(url);
-  url = appendPartnersFirstParty(url, partnerData);
+  url += partnerData?.clientType ? '&idtype=' + partnerData.clientType : '';
   if (deviceInfo) url = appendDeviceInfoToUrl(url, deviceInfo)
   url += VERSION ? '&jsver=' + VERSION : '';
   if (clientHints) url += '&uh=' + encodeURIComponent(clientHints);
   url = appendVrrefAndFui(url, configParams.domainName);
-  if (cmpData.gdprString) url += '&gdpr_consent=' + encodeURIComponent(cmpData.gdprString);
-  if (cmpData.uspString) url += '&us_privacy=' + encodeURIComponent(cmpData.uspString);
-  if (cmpData.gppString) url += '&gpp=' + encodeURIComponent(cmpData.gppString);
-  url += '&gdpr=' + (cmpData.gdprString ? '1' : '0');
+  url = appendCMPData(url, cmpData)
   return url;
 }
 
-function request(allowedStorage, url) {
+function sendSyncRequest(allowedStorage, url) {
   const lastSyncDate = parseInt(readData(SYNC_KEY || '', allowedStorage));
   if (!lastSyncDate || Date.now() - lastSyncDate > SYNC_REFRESH_MILL) {
     storeData(SYNC_KEY, Date.now() + '', allowedStorage);
     ajax(url, () => {
     }, undefined, {method: 'GET', withCredentials: true});
   }
-}
-
-function syncMode(firstPartyData, clientHints, allowedStorage, configParams, partnerData, cmpData) {
-  const url = createPixelUrl(firstPartyData, clientHints, configParams, partnerData, cmpData)
-  request(allowedStorage, url)
 }
 
 /**
@@ -371,7 +370,8 @@ export const intentIqIdSubmodule = {
     if (browserBlackList?.includes(currentBrowserLowerCase)) {
       logError('User ID - intentIqId submodule: browser is in blacklist!');
       if (configParams.callback) configParams.callback('', BLACK_LIST);
-      syncMode(firstPartyData, clientHints, allowedStorage, configParams, partnerData, cmpData)
+      const url = createPixelUrl(firstPartyData, clientHints, configParams, partnerData, cmpData)
+      sendSyncRequest(allowedStorage, url)
       return
     }
 
@@ -379,16 +379,10 @@ export const intentIqIdSubmodule = {
     let url = `${gdprDetected ? GDPR_ENDPOINT : VR_ENDPOINT}/profiles_engine/ProfilesEngineServlet?at=39&mi=10&dpi=${configParams.partner}&pt=17&dpn=1`;
     url += configParams.pcid ? '&pcid=' + encodeURIComponent(configParams.pcid) : '';
     url += configParams.pai ? '&pai=' + encodeURIComponent(configParams.pai) : '';
-    url += firstPartyData.pcid ? '&iiqidtype=2&iiqpcid=' + encodeURIComponent(firstPartyData.pcid) : '';
-    url += firstPartyData.pid ? '&pid=' + encodeURIComponent(firstPartyData.pid) : '';
+    url = appendFirstPartyData(url, firstPartyData, partnerData);
     url += (partnerData.cttl) ? '&cttl=' + encodeURIComponent(partnerData.cttl) : '';
     url += (partnerData.rrtt) ? '&rrtt=' + encodeURIComponent(partnerData.rrtt) : '';
-    url += firstPartyData.pcidDate ? '&iiqpciddate=' + encodeURIComponent(firstPartyData.pcidDate) : '';
-    url += cmpData.uspString ? '&us_privacy=' + encodeURIComponent(cmpData.uspString) : '';
-    url += cmpData.gppString ? '&gpp=' + encodeURIComponent(cmpData.gppString) : '';
-    url += cmpData.gdprApplies
-      ? '&gdpr_consent=' + encodeURIComponent(cmpData.gdprString) + '&gdpr=1'
-      : '&gdpr=0';
+    url = appendCMPData(url, cmpData)
     url += clientHints ? '&uh=' + encodeURIComponent(clientHints) : '';
     url += VERSION ? '&jsver=' + VERSION : '';
     url += firstPartyData?.group ? '&testGroup=' + encodeURIComponent(firstPartyData.group) : '';
