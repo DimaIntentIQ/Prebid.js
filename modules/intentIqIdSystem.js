@@ -142,10 +142,11 @@ function createPixelUrl(firstPartyData, clientHints, configParams, partnerData, 
   return url;
 }
 
-function sendSyncRequest(allowedStorage, url) {
-  const lastSyncDate = parseInt(readData(SYNC_KEY || '', allowedStorage));
-  if (!lastSyncDate || Date.now() - lastSyncDate > SYNC_REFRESH_MILL) {
-    storeData(SYNC_KEY, Date.now() + '', allowedStorage);
+function sendSyncRequest(allowedStorage, url, partner) {
+  const lastSyncDate = Number(readData(SYNC_KEY(partner) || '', allowedStorage)) || false;
+  const lastSyncElapsedTime = Date.now() - lastSyncDate
+  if (!lastSyncDate || lastSyncElapsedTime > SYNC_REFRESH_MILL) {
+    storeData(SYNC_KEY(partner), Date.now() + '', allowedStorage);
     ajax(url, () => {
     }, undefined, {method: 'GET', withCredentials: true});
   }
@@ -371,7 +372,7 @@ export const intentIqIdSubmodule = {
       logError('User ID - intentIqId submodule: browser is in blacklist!');
       if (configParams.callback) configParams.callback('', BLACK_LIST);
       const url = createPixelUrl(firstPartyData, clientHints, configParams, partnerData, cmpData)
-      sendSyncRequest(allowedStorage, url)
+      sendSyncRequest(allowedStorage, url, configParams.partner)
       return
     }
 
