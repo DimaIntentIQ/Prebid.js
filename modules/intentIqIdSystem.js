@@ -129,7 +129,8 @@ function appendCMPData (url, cmpData) {
 function createPixelUrl(firstPartyData, clientHints, configParams, partnerData, cmpData) {
   const deviceInfo = collectDeviceInfo()
 
-  let url = cmpData.gdprString ? GDPR_SYNC_ENDPOINT : SYNC_ENDPOINT + '/profiles_engine/ProfilesEngineServlet?at=20&mi=10&secure=1';
+  let url = cmpData.gdprString ? GDPR_SYNC_ENDPOINT : SYNC_ENDPOINT;
+  url += '/profiles_engine/ProfilesEngineServlet?at=20&mi=10&secure=1'
   url += '&dpi=' + configParams.partner;
   url = appendFirstPartyData(url, firstPartyData, partnerData);
   url = addUniquenessToUrl(url);
