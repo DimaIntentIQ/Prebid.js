@@ -7,8 +7,8 @@ import { getWindowTop, logError, getWindowLocation, getWindowSelf } from '../../
 export function getReferrer() {
   try {
     const url = getWindowSelf() === getWindowTop()
-      ? encodeURIComponent(getWindowLocation().href)
-      : encodeURIComponent(getWindowTop().location.href);
+      ? getWindowLocation().href
+      : getWindowTop().location.href;
 
     if (url.length >= 50) {
       const { origin } = new URL(url);
@@ -31,7 +31,7 @@ export function getReferrer() {
  * @return {string} The modified URL with appended `vrref` or `fui` parameters.
  */
 export function appendVrrefAndFui(url, domainName) {
-  const fullUrl = getReferrer();
+  const fullUrl = encodeURIComponent(getReferrer());
   if (fullUrl) {
     return (url += '&vrref=' + getRelevantRefferer(domainName, fullUrl));
   }
