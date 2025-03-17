@@ -126,7 +126,7 @@ function appendCMPData (url, cmpData) {
   return url
 }
 
-function createPixelUrl(firstPartyData, clientHints, configParams, partnerData, cmpData) {
+export function createPixelUrl(firstPartyData, clientHints, configParams, partnerData, cmpData) {
   const deviceInfo = collectDeviceInfo()
 
   let url = cmpData.gdprString ? GDPR_SYNC_ENDPOINT : SYNC_ENDPOINT;
