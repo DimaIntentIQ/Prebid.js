@@ -242,7 +242,7 @@ function prepareData (data, result) {
     result[PARAMS_NAMES.adType] = adTypeValue;
   }
   const iiqConfig = getIntentIqConfig();
-  const adUnitConfig = iiqConfig.params?.adUnitConfig || 1;
+  const adUnitConfig = iiqConfig.params?.adUnitConfig;
 
   switch (adUnitConfig) {
     case 1:
@@ -264,7 +264,6 @@ function prepareData (data, result) {
     default:
       // Default (like in case #1)
       result.placementId = data.adUnitCode || extractPlacementId(data) || '';
-      break;
   }
 
   result.biddingPlatformId = 1;
