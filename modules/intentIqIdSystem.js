@@ -22,9 +22,13 @@ import {
   CLIENT_HINTS_KEY,
   EMPTY,
   GVLID,
-  VERSION, INVALID_ID, GDPR_ENDPOINT, VR_ENDPOINT, SYNC_ENDPOINT, SCREEN_PARAMS, GDPR_SYNC_ENDPOINT, SYNC_REFRESH_MILL
+  VERSION, INVALID_ID, SCREEN_PARAMS, SYNC_REFRESH_MILL
 } from '../libraries/intentIqConstants/intentIqConstants.js';
 import {SYNC_KEY} from '../libraries/intentIqUtils/getSyncKey.js';
+import {
+  iiqPixelServerAddress,
+  iiqServerAddress,
+} from '../libraries/intentIqUtils/IntentIqConfig.js';
 
 /**
  * @typedef {import('../modules/userId/index.js').Submodule} Submodule
@@ -129,7 +133,7 @@ function appendCMPData (url, cmpData) {
 export function createPixelUrl(firstPartyData, clientHints, configParams, partnerData, cmpData) {
   const deviceInfo = collectDeviceInfo()
 
-  let url = cmpData.gdprString ? GDPR_SYNC_ENDPOINT : SYNC_ENDPOINT;
+  let url = iiqPixelServerAddress(configParams);
   url += '/profiles_engine/ProfilesEngineServlet?at=20&mi=10&secure=1'
   url += '&dpi=' + configParams.partner;
   url = appendFirstPartyData(url, firstPartyData, partnerData);
@@ -143,13 +147,22 @@ export function createPixelUrl(firstPartyData, clientHints, configParams, partne
   return url;
 }
 
-function sendSyncRequest(allowedStorage, url, partner) {
+function sendSyncRequest(allowedStorage, url, partner, firstPartyData) {
   const lastSyncDate = Number(readData(SYNC_KEY(partner) || '', allowedStorage)) || false;
   const lastSyncElapsedTime = Date.now() - lastSyncDate
-  if (!lastSyncDate || lastSyncElapsedTime > SYNC_REFRESH_MILL) {
-    storeData(SYNC_KEY(partner), Date.now() + '', allowedStorage);
-    ajax(url, () => {
-    }, undefined, {method: 'GET', withCredentials: true});
+
+  if (firstPartyData.isOptedOut) {
+    const needToDoSync = (Date.now() - (firstPartyData?.date || firstPartyData?.sCal || Date.now())) > SYNC_REFRESH_MILL
+    if (needToDoSync) {
+      ajax(url, () => {
+      }, undefined, {method: 'GET', withCredentials: true});
+    }
+  } else {
+    if (!lastSyncDate || lastSyncElapsedTime > SYNC_REFRESH_MILL) {
+      storeData(SYNC_KEY(partner), Date.now() + '', allowedStorage);
+      ajax(url, () => {
+      }, undefined, {method: 'GET', withCredentials: true});
+    }
   }
 }
 
@@ -362,23 +375,23 @@ export const intentIqIdSubmodule = {
       firePartnerCallback()
     }
 
+    // Check if current browser is in blacklist
+    if (browserBlackList?.includes(currentBrowserLowerCase)) {
+      logError('User ID - intentIqId submodule: browser is in blacklist! Data will be not provided.');
+      if (configParams.callback) configParams.callback('', BLACK_LIST);
+      const url = createPixelUrl(firstPartyData, clientHints, configParams, partnerData, cmpData)
+      sendSyncRequest(allowedStorage, url, configParams.partner, firstPartyData)
+      return
+    }
+
     if (!shouldCallServer) {
       if (isGroupB) runtimeEids = { eids: [] };
       firePartnerCallback();
       return { id: runtimeEids.eids };
     }
 
-    // Check if current browser is in blacklist
-    if (browserBlackList?.includes(currentBrowserLowerCase)) {
-      logError('User ID - intentIqId submodule: browser is in blacklist!');
-      if (configParams.callback) configParams.callback('', BLACK_LIST);
-      const url = createPixelUrl(firstPartyData, clientHints, configParams, partnerData, cmpData)
-      sendSyncRequest(allowedStorage, url, configParams.partner)
-      return
-    }
-
     // use protocol relative urls for http or https
-    let url = `${gdprDetected ? GDPR_ENDPOINT : VR_ENDPOINT}/profiles_engine/ProfilesEngineServlet?at=39&mi=10&dpi=${configParams.partner}&pt=17&dpn=1`;
+    let url = `${iiqServerAddress(configParams)}/profiles_engine/ProfilesEngineServlet?at=39&mi=10&dpi=${configParams.partner}&pt=17&dpn=1`;
     url += configParams.pcid ? '&pcid=' + encodeURIComponent(configParams.pcid) : '';
     url += configParams.pai ? '&pai=' + encodeURIComponent(configParams.pai) : '';
     url = appendFirstPartyData(url, firstPartyData, partnerData);
