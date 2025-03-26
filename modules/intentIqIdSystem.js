@@ -131,7 +131,7 @@ function appendCMPData (url, cmpData) {
 /**
  * Translate and validate sourceMetaData
  */
-function translateMetadata(data) {
+export function translateMetadata(data) {
   try {
     const d = data.split('.');
     return (
