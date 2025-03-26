@@ -687,4 +687,20 @@ describe('IntentIQ tests', function () {
     await intentIqIdSubmodule.getId(callbackConfigParams);
     expect(wasCallbackCalled).to.equal(true);
   });
+
+  it('should run callback from params', async () => {
+    let wasCallbackCalled = false
+    const callbackConfigParams = { params: { partner: partner,
+      pai: pai,
+      pcid: pcid,
+      browserBlackList: 'Chrome',
+      iiqServerAddress: 'https://api-gdpr.intentiq.com',
+      iiqPixelServerAddress: 'https://sync.intentiq.com',
+      callback: () => {
+        wasCallbackCalled = true
+      } } };
+
+    await intentIqIdSubmodule.getId(callbackConfigParams);
+    expect(wasCallbackCalled).to.equal(true);
+  });
 });
