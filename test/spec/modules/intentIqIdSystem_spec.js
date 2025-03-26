@@ -580,6 +580,35 @@ describe('IntentIQ tests', function () {
 
       expect(request.url).to.contain(ENDPOINT_GDPR);
     });
+
+    it('should make request to correct address with iiqServerAddress parameter', function() {
+      defaultConfigParams.params.iiqServerAddress = 'https://new-test-api.intentiq.com'
+      let callBackSpy = sinon.spy();
+      let submoduleCallback = intentIqIdSubmodule.getId({...defaultConfigParams}).callback;
+
+      submoduleCallback(callBackSpy);
+      let request = server.requests[0];
+
+      expect(request.url).to.contain('https://new-test-api.intentiq.com');
+    });
+
+    it('should make request to correct address with iiqPixelServerAddress parameter', function() {
+      let wasCallbackCalled = false
+      const callbackConfigParams = { params: { partner: partner,
+        pai: pai,
+        pcid: pcid,
+        browserBlackList: 'Chrome',
+        iiqPixelServerAddress: 'https://new-test-sync.intentiq.com',
+        callback: () => {
+          wasCallbackCalled = true
+        } } };
+
+      intentIqIdSubmodule.getId({...callbackConfigParams});
+
+      let request = server.requests[0];
+
+      expect(request.url).to.contain('https://new-test-sync.intentiq.com');
+    });
   });
 
   it('should get and save client hints to storage', async () => {
@@ -680,22 +709,6 @@ describe('IntentIQ tests', function () {
       pai: pai,
       pcid: pcid,
       browserBlackList: 'Chrome',
-      callback: () => {
-        wasCallbackCalled = true
-      } } };
-
-    await intentIqIdSubmodule.getId(callbackConfigParams);
-    expect(wasCallbackCalled).to.equal(true);
-  });
-
-  it('should run callback from params', async () => {
-    let wasCallbackCalled = false
-    const callbackConfigParams = { params: { partner: partner,
-      pai: pai,
-      pcid: pcid,
-      browserBlackList: 'Chrome',
-      iiqServerAddress: 'https://api-gdpr.intentiq.com',
-      iiqPixelServerAddress: 'https://sync.intentiq.com',
       callback: () => {
         wasCallbackCalled = true
       } } };
