@@ -700,6 +700,18 @@ describe('IntentIQ tests', function () {
     expect(request.url).to.include('fbp=')
   });
 
+  it('should NOT send sourceMetaData and sourceMetaDataExternal in AT=39 if it undefined', function () {
+    let callBackSpy = sinon.spy();
+    const configParams = { params: {...allConfigParams.params, sourceMetaData: undefined} };
+    let submoduleCallback = intentIqIdSubmodule.getId(configParams).callback;
+    submoduleCallback(callBackSpy);
+
+    let request = server.requests[0];
+
+    expect(request.url).to.include('?at=39')
+    expect(request.url).not.to.include('fbp=')
+  });
+
   it('should NOT send sourceMetaData in AT=39 if value is NAN', function () {
     let callBackSpy = sinon.spy();
     const configParams = { params: {...allConfigParams.params, sourceMetaData: NaN} };
@@ -730,5 +742,15 @@ describe('IntentIQ tests', function () {
 
     expect(request.url).to.include('?at=20');
     expect(request.url).to.not.include('&fbp=');
+  });
+
+  it('should NOT send sourceMetaData in AT=20 if sourceMetaDataExternal provided', function () {
+    const configParams = { params: {...allConfigParams.params, browserBlackList: 'chrome', sourceMetaDataExternal: 123} };
+
+    intentIqIdSubmodule.getId(configParams);
+    let request = server.requests[0];
+
+    expect(request.url).to.include('?at=20');
+    expect(request.url).to.include('&fbp=123');
   });
 });
