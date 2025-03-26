@@ -17,10 +17,11 @@ import {CLIENT_HINTS_KEY, FIRST_PARTY_KEY, NOT_YET_DEFINED, WITH_IIQ} from '../.
 const partner = 10;
 const pai = '11';
 const pcid = '12';
+const sourceMetaData = '123.123.123.123';
 const defaultConfigParams = { params: { partner: partner } };
 const paiConfigParams = { params: { partner: partner, pai: pai } };
 const pcidConfigParams = { params: { partner: partner, pcid: pcid } };
-const allConfigParams = { params: { partner: partner, pai: pai, pcid: pcid } };
+const allConfigParams = { params: { partner: partner, pai: pai, pcid: pcid, sourceMetaData: sourceMetaData } };
 const responseHeader = { 'Content-Type': 'application/json' }
 
 export const testClientHints = {
@@ -686,5 +687,48 @@ describe('IntentIQ tests', function () {
 
     await intentIqIdSubmodule.getId(callbackConfigParams);
     expect(wasCallbackCalled).to.equal(true);
+  });
+
+  it('should send sourceMetaData in AT=39 if it exist in configParams', function () {
+    let callBackSpy = sinon.spy();
+    let submoduleCallback = intentIqIdSubmodule.getId(allConfigParams).callback;
+    submoduleCallback(callBackSpy);
+
+    let request = server.requests[0];
+
+    expect(request.url).to.include('?at=39')
+    expect(request.url).to.include('fbp=')
+  });
+
+  it('should NOT send sourceMetaData in AT=39 if value is NAN', function () {
+    let callBackSpy = sinon.spy();
+    const configParams = { params: {...allConfigParams.params, sourceMetaData: NaN} };
+    let submoduleCallback = intentIqIdSubmodule.getId(configParams).callback;
+    submoduleCallback(callBackSpy);
+
+    let request = server.requests[0];
+
+    expect(request.url).to.include('?at=39')
+    expect(request.url).not.to.include('fbp=')
+  });
+
+  it('should send sourceMetaData in AT=20 if it exist in configParams', function () {
+    const configParams = { params: {...allConfigParams.params, browserBlackList: 'chrome'} };
+
+    intentIqIdSubmodule.getId(configParams);
+    let request = server.requests[0];
+
+    expect(request.url).to.include('?at=20');
+    expect(request.url).to.include('&fbp=');
+  });
+
+  it('should NOT send sourceMetaData in AT=20 if value is NAN', function () {
+    const configParams = { params: {...allConfigParams.params, sourceMetaData: NaN, browserBlackList: 'chrome'} };
+
+    intentIqIdSubmodule.getId(configParams);
+    let request = server.requests[0];
+
+    expect(request.url).to.include('?at=20');
+    expect(request.url).to.not.include('&fbp=');
   });
 });
