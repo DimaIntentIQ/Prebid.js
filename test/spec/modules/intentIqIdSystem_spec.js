@@ -726,13 +726,14 @@ describe('IntentIQ tests', function () {
   });
 
   it('should send sourceMetaData in AT=20 if it exists in configParams', function () {
+    let translatedMetaDataValue = translateMetadata(sourceMetaData)
     const configParams = { params: {...allConfigParams.params, browserBlackList: 'chrome'} };
 
     intentIqIdSubmodule.getId(configParams);
     let request = server.requests[0];
 
     expect(request.url).to.include('?at=20');
-    expect(request.url).to.include('&fbp=');
+    expect(request.url).to.include(`fbp=${translatedMetaDataValue}`)
   });
 
   it('should NOT send sourceMetaData in AT=20 if value is NAN', function () {
