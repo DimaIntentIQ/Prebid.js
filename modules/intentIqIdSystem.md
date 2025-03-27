@@ -55,7 +55,7 @@ Please find below list of paramters that could be used in configuring Intent IQ 
 pbjs.setConfig({
     userSync: {
         userIds: [{
-            name: "intentIqId",я
+            name: "intentIqId",
             params: {
                 partner: 123456,     // valid partner id
                 timeoutInMillis: 500,
@@ -72,7 +72,7 @@ pbjs.setConfig({
                 name: "intentIqId",    // set localstorage with this name
                 expires: 0,
                 refreshInSeconds: 0
-            }»»яяяяя
+            }
         }]
     }
 });
