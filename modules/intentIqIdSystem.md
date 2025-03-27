@@ -46,8 +46,8 @@ Please find below list of paramters that could be used in configuring Intent IQ 
 | params.gamObjectReference      | Optional | Object   | This is a reference to the Google Ad Manager (GAM) object, which will be used to set targeting. If this parameter is not provided, the group reporting will not be configured.                                                                                                                                                            | `googletag`                                   |
 | params.gamParameterName        | Optional | String   | The name of the targeting parameter that will be used to pass the group. If not specified, the default value is `intent_iq_group`.                                                                                                                                                                                                        | `"intent_iq_group"`                           |
 | params.adUnitConfig            | Optional | Number   | Determines how the placementId parameter is extracted in the report (default is 1). Possible values: 1 – adUnitCode first, 2 – placementId first, 3 – only adUnitCode, 4 – only placementId                                                                                                                                               | `1`                                           |
-| params.sourceMetaData          | Optional | String   | This metadata can be provided by the partner and will be included in the requests URL as a query parameter `fbp`                                                                                                                                                                                                                          | `"123.123.123.123"`                             |
-| params.sourceMetaDataExternal  | Optional | Number   | This metadata can be provided by the partner and will be included in the requests URL as a query parameter `fbp`                                                                                                                                                                                                                          | `123456`                                      |
+| params.sourceMetaData          | Optional | String   | This metadata can be provided by the partner and will be included in the requests URL as a query parameter                                                                                                                                                                                                                          | `"123.123.123.123"`                             |
+| params.sourceMetaDataExternal  | Optional | Number   | This metadata can be provided by the partner and will be included in the requests URL as a query parameter                                                                                                                                                                                                                          | `123456`                                      |
 
 ### Configuration example
 
@@ -55,7 +55,7 @@ Please find below list of paramters that could be used in configuring Intent IQ 
 pbjs.setConfig({
     userSync: {
         userIds: [{
-            name: "intentIqId",
+            name: "intentIqId",я
             params: {
                 partner: 123456,     // valid partner id
                 timeoutInMillis: 500,
@@ -72,7 +72,7 @@ pbjs.setConfig({
                 name: "intentIqId",    // set localstorage with this name
                 expires: 0,
                 refreshInSeconds: 0
-            }
+            }»»яяяяя
         }]
     }
 });
