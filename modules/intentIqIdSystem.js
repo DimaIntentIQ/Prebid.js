@@ -259,16 +259,16 @@ export function isCMPStringTheSame(fpData, cmpData) {
   return firstPartyDataCPString === cmpDataString;
 }
 
-function updateCountersAndStore(runtimeEids, allowedStorage) {
+function updateCountersAndStore(runtimeEids, allowedStorage, partnerData) {
   if (!runtimeEids?.eids?.length) {
     noDataCount++;
   } else {
     callCount++;
   }
-  storeCounters(allowedStorage);
+  storeCounters(allowedStorage, partnerData);
 }
 
-function storeCounters(storage) {
+function storeCounters(storage, partnerData) {
   partnerData.callCount = callCount;
   partnerData.failCount = failCount;
   partnerData.noDataCounter = noDataCount;
@@ -303,6 +303,15 @@ export const intentIqIdSubmodule = {
   getId(config) {
     const configParams = (config?.params) || {};
 
+    const firePartnerCallback = () => {
+      if (configParams.callback && !callbackFired) {
+        callbackFired = true;
+        if (callbackTimeoutID) clearTimeout(callbackTimeoutID);
+        if (isGroupB) runtimeEids = { eids: [] };
+        configParams.callback(runtimeEids, firstPartyData?.group || NOT_YET_DEFINED);
+      }
+    }
+
     if (typeof configParams.partner !== 'number') {
       logError('User ID - intentIqId submodule requires a valid partner to be defined');
       firePartnerCallback()
@@ -329,15 +338,6 @@ export const intentIqIdSubmodule = {
     firstPartyData = tryParse(readData(FIRST_PARTY_KEY, allowedStorage));
     const isGroupB = firstPartyData?.group === WITHOUT_IIQ;
     setGamReporting(gamObjectReference, gamParameterName, firstPartyData?.group)
-
-    const firePartnerCallback = () => {
-      if (configParams.callback && !callbackFired) {
-        callbackFired = true;
-        if (callbackTimeoutID) clearTimeout(callbackTimeoutID);
-        if (isGroupB) runtimeEids = { eids: [] };
-        configParams.callback(runtimeEids, firstPartyData?.group || NOT_YET_DEFINED);
-      }
-    }
 
     callbackTimeoutID = setTimeout(() => {
       firePartnerCallback();
@@ -401,7 +401,7 @@ export const intentIqIdSubmodule = {
       if (typeof partnerData.callCount === 'number') callCount = partnerData.callCount;
       if (typeof partnerData.failCount === 'number') failCount = partnerData.failCount;
       if (typeof partnerData.noDataCounter === 'number') noDataCount = partnerData.noDataCounter;
-    
+
       if (partnerData.wsrvcll) {
         partnerData.wsrvcll = false;
         storeData(FIRST_PARTY_DATA_KEY, JSON.stringify(partnerData), allowedStorage, firstPartyData);
@@ -562,7 +562,7 @@ export const intentIqIdSubmodule = {
               callback(runtimeEids);
               firePartnerCallback()
             }
-            updateCountersAndStore(runtimeEids, allowedStorage);
+            updateCountersAndStore(runtimeEids, allowedStorage, partnerData);
             storeFirstPartyData();
           } else {
             callback(runtimeEids);
@@ -572,7 +572,7 @@ export const intentIqIdSubmodule = {
         error: error => {
           logError(MODULE_NAME + ': ID fetch encountered an error', error);
           failCount++;
-          storeCounters(allowedStorage);
+          storeCounters(allowedStorage, partnerData);
           callback(runtimeEids);
         }
       };

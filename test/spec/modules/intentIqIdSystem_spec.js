@@ -755,4 +755,59 @@ describe('IntentIQ tests', function () {
     expect(request.url).to.include('?at=20');
     expect(request.url).to.include('&fbp=123');
   });
+
+  it('should increment callCount when valid eids are returned', function () {
+    const firstPartyDataKey = '_iiq_fdata_' + partner;
+    const partnerData = { callCount: 0, failCount: 0, noDataCounter: 0 };
+    localStorage.setItem(firstPartyDataKey, JSON.stringify(partnerData));
+    localStorage.setItem(FIRST_PARTY_KEY, JSON.stringify({ pcid: 'abc', cttl: 9999999, group: 'with_iiq' }));
+
+    const responseData = { data: { eids: ['abc'] }, ls: true };
+
+    const submoduleCallback = intentIqIdSubmodule.getId(defaultConfigParams).callback;
+    const callBackSpy = sinon.spy();
+
+    submoduleCallback(callBackSpy);
+    const request = server.requests[0];
+    request.respond(200, responseHeader, JSON.stringify(responseData));
+
+    const updatedData = JSON.parse(localStorage.getItem(firstPartyDataKey));
+    expect(updatedData.callCount).to.equal(1);
+  });
+
+  it('should increment failCount when request fails', function () {
+    const firstPartyDataKey = '_iiq_fdata_' + partner;
+    const partnerData = { callCount: 0, failCount: 0, noDataCounter: 0 };
+    localStorage.setItem(firstPartyDataKey, JSON.stringify(partnerData));
+    localStorage.setItem(FIRST_PARTY_KEY, JSON.stringify({ pcid: 'abc', cttl: 9999999, group: 'with_iiq' }));
+
+    const submoduleCallback = intentIqIdSubmodule.getId(defaultConfigParams).callback;
+    const callBackSpy = sinon.spy();
+
+    submoduleCallback(callBackSpy);
+    const request = server.requests[0];
+    request.respond(503, responseHeader, 'Service Unavailable');
+
+    const updatedData = JSON.parse(localStorage.getItem(firstPartyDataKey));
+    expect(updatedData.failCount).to.equal(1);
+  });
+
+  it('should increment noDataCounter when eids are empty', function () {
+    const firstPartyDataKey = '_iiq_fdata_' + partner;
+    const partnerData = { callCount: 0, failCount: 0, noDataCounter: 0 };
+    localStorage.setItem(firstPartyDataKey, JSON.stringify(partnerData));
+    localStorage.setItem(FIRST_PARTY_KEY, JSON.stringify({ pcid: 'abc', cttl: 9999999, group: 'with_iiq' }));
+
+    const responseData = { data: { eids: [] }, ls: true };
+
+    const submoduleCallback = intentIqIdSubmodule.getId(defaultConfigParams).callback;
+    const callBackSpy = sinon.spy();
+
+    submoduleCallback(callBackSpy);
+    const request = server.requests[0];
+    request.respond(200, responseHeader, JSON.stringify(responseData));
+
+    const updatedData = JSON.parse(localStorage.getItem(firstPartyDataKey));
+    expect(updatedData.noDataCounter).to.equal(1);
+  });
 });
