@@ -47,7 +47,7 @@ const getUserConfigWithReportingServerAddress = () => [
       'partner': partner,
       'unpack': null,
       'manualWinReportEnabled': false,
-      'reportingServerAddress':REPORT_SERVER_ADDRESS
+      'reportingServerAddress': REPORT_SERVER_ADDRESS
 
     },
     'storage': {

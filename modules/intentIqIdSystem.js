@@ -48,6 +48,7 @@ const encoderCH = {
 };
 let sourceMetaData;
 let sourceMetaDataExternal;
+let FIRST_PARTY_KEY_FINAL = FIRST_PARTY_KEY;
 
 export let firstPartyData;
 
@@ -183,7 +184,7 @@ function sendSyncRequest(allowedStorage, url, partner, firstPartyData, newUser) 
       }, undefined, {method: 'GET', withCredentials: true});
       if (firstPartyData?.date) {
         firstPartyData.date = Date.now()
-        storeData(FIRST_PARTY_KEY, JSON.stringify(firstPartyData), allowedStorage, firstPartyData);
+        storeData(FIRST_PARTY_KEY_FINAL, JSON.stringify(firstPartyData), allowedStorage, firstPartyData);
       }
     }
   } else if (!lastSyncDate || lastSyncElapsedTime > SYNC_REFRESH_MILL) {
@@ -287,6 +288,7 @@ export const intentIqIdSubmodule = {
 
     let gamObjectReference = isPlainObject(configParams.gamObjectReference) ? configParams.gamObjectReference : undefined;
     let gamParameterName = configParams.gamParameterName ? configParams.gamParameterName : 'intent_iq_group';
+    let siloEnabled = typeof configParams.siloEnabled === 'boolean' ? configParams.siloEnabled : false;
     sourceMetaData = isStr(configParams.sourceMetaData) ? translateMetadata(configParams.sourceMetaData) : '';
     sourceMetaDataExternal = isNumber(configParams.sourceMetaDataExternal) ? configParams.sourceMetaDataExternal : undefined;
 
@@ -295,10 +297,11 @@ export const intentIqIdSubmodule = {
     let rrttStrtTime = 0;
     let partnerData = {};
     let shouldCallServer = false;
+    FIRST_PARTY_KEY_FINAL = `${FIRST_PARTY_KEY}${siloEnabled ? '_p_' + configParams.partner : ''}`;
     const FIRST_PARTY_DATA_KEY = `${FIRST_PARTY_KEY}_${configParams.partner}`;
     const cmpData = getCmpData();
     const gdprDetected = cmpData.gdprString;
-    firstPartyData = tryParse(readData(FIRST_PARTY_KEY, allowedStorage));
+    firstPartyData = tryParse(readData(FIRST_PARTY_KEY_FINAL, allowedStorage));
     const isGroupB = firstPartyData?.group === WITHOUT_IIQ;
     setGamReporting(gamObjectReference, gamParameterName, firstPartyData?.group)
 
@@ -339,10 +342,10 @@ export const intentIqIdSubmodule = {
         date: Date.now()
       };
       newUser = true;
-      storeData(FIRST_PARTY_KEY, JSON.stringify(firstPartyData), allowedStorage, firstPartyData);
+      storeData(FIRST_PARTY_KEY_FINAL, JSON.stringify(firstPartyData), allowedStorage, firstPartyData);
     } else if (!firstPartyData.pcidDate) {
       firstPartyData.pcidDate = Date.now();
-      storeData(FIRST_PARTY_KEY, JSON.stringify(firstPartyData), allowedStorage, firstPartyData);
+      storeData(FIRST_PARTY_KEY_FINAL, JSON.stringify(firstPartyData), allowedStorage, firstPartyData);
     }
 
     if (gdprDetected && !('isOptedOut' in firstPartyData)) {
@@ -394,7 +397,7 @@ export const intentIqIdSubmodule = {
       firstPartyData.gppString = cmpData.gppString;
       firstPartyData.gdprString = cmpData.gdprString;
       shouldCallServer = true;
-      storeData(FIRST_PARTY_KEY, JSON.stringify(firstPartyData), allowedStorage, firstPartyData);
+      storeData(FIRST_PARTY_KEY_FINAL, JSON.stringify(firstPartyData), allowedStorage, firstPartyData);
       storeData(FIRST_PARTY_DATA_KEY, JSON.stringify(partnerData), allowedStorage, firstPartyData);
     } else if (firstPartyData.isOptedOut) {
       partnerData.data = runtimeEids = { eids: [] };
@@ -427,7 +430,8 @@ export const intentIqIdSubmodule = {
     url = appendFirstPartyData(url, firstPartyData, partnerData);
     url += (partnerData.cttl) ? '&cttl=' + encodeURIComponent(partnerData.cttl) : '';
     url += (partnerData.rrtt) ? '&rrtt=' + encodeURIComponent(partnerData.rrtt) : '';
-    url = appendCMPData(url, cmpData)
+    url = appendCMPData(url, cmpData);
+    url += '&japs=' + encodeURIComponent(configParams.siloEnabled === true);
     url += clientHints ? '&uh=' + encodeURIComponent(clientHints) : '';
     url += VERSION ? '&jsver=' + VERSION : '';
     url += firstPartyData?.group ? '&testGroup=' + encodeURIComponent(firstPartyData.group) : '';
@@ -438,7 +442,7 @@ export const intentIqIdSubmodule = {
 
     const storeFirstPartyData = () => {
       partnerData.eidl = runtimeEids?.eids?.length || -1
-      storeData(FIRST_PARTY_KEY, JSON.stringify(firstPartyData), allowedStorage, firstPartyData);
+      storeData(FIRST_PARTY_KEY_FINAL, JSON.stringify(firstPartyData), allowedStorage, firstPartyData);
       storeData(FIRST_PARTY_DATA_KEY, JSON.stringify(partnerData), allowedStorage, firstPartyData);
     }
 
@@ -465,7 +469,7 @@ export const intentIqIdSubmodule = {
               partnerData.terminationCause = respJson.tc;
               if (respJson.tc == 41) {
                 firstPartyData.group = WITHOUT_IIQ;
-                storeData(FIRST_PARTY_KEY, JSON.stringify(firstPartyData), allowedStorage, firstPartyData);
+                storeData(FIRST_PARTY_KEY_FINAL, JSON.stringify(firstPartyData), allowedStorage, firstPartyData);
                 defineEmptyDataAndFireCallback();
                 if (gamObjectReference) setGamReporting(gamObjectReference, gamParameterName, firstPartyData.group);
                 return
@@ -488,7 +492,7 @@ export const intentIqIdSubmodule = {
 
                 keysToRemove.forEach(key => removeDataByKey(key, allowedStorage));
 
-                storeData(FIRST_PARTY_KEY, JSON.stringify(firstPartyData), allowedStorage, firstPartyData);
+                storeData(FIRST_PARTY_KEY_FINAL, JSON.stringify(firstPartyData), allowedStorage, firstPartyData);
                 firePartnerCallback();
                 callback(runtimeEids);
                 return
