@@ -23,3 +23,4 @@ export const SCREEN_PARAMS = {
 };
 
 export const SYNC_REFRESH_MILL = 3600000;
+export const META_DATA_CONSTANT = 256;

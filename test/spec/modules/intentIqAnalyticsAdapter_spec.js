@@ -120,15 +120,17 @@ describe('IntentIQ tests all', function () {
 
   it('IIQ Analytical Adapter bid win report', function () {
     localStorage.setItem(FIRST_PARTY_KEY, defaultData);
-    getWindowLocationStub = sinon.stub(utils, 'getWindowLocation').returns({href: 'http://localhost:9876/'});
-    const expectedVrref = encodeURIComponent(getWindowLocationStub().href);
-
+    getWindowLocationStub = sinon.stub(utils, 'getWindowLocation').returns({href: 'http://localhost:9876'});
+    const expectedVrref = getWindowLocationStub().href;
     events.emit(EVENTS.BID_WON, wonRequest);
 
     expect(server.requests.length).to.be.above(0);
     const request = server.requests[0];
+    const parsedUrl = new URL(request.url);
+    const vrref = parsedUrl.searchParams.get('vrref');
     expect(request.url).to.contain(REPORT_ENDPOINT + '?pid=' + partner + '&mct=1');
-    expect(request.url).to.contain(`&vrref=`);
+    expect(request.url).to.contain(`&jsver=${version}`);
+    expect(`&vrref=${decodeURIComponent(vrref)}`).to.contain(`&vrref=${expectedVrref}`);
     expect(request.url).to.contain('&payload=');
     expect(request.url).to.contain('iiqid=f961ffb1-a0e1-4696-a9d2-a21d815bd344');
   });
@@ -202,7 +204,7 @@ describe('IntentIQ tests all', function () {
     const request = server.requests[0];
     expect(request.url).to.contain('https://reports.intentiq.com/report?pid=' + partner + '&mct=1');
     expect(request.url).to.contain(`&jsver=${version}`);
-    expect(request.url).to.contain(`&vrref=`);
+    expect(request.url).to.contain(`&vrref=${expectedVrref}`);
     expect(request.url).to.contain('iiqid=testpcid');
   });
 
@@ -341,7 +343,7 @@ describe('IntentIQ tests all', function () {
     const request = server.requests[0];
     expect(request.url).to.contain(`https://reports.intentiq.com/report?pid=${partner}&mct=1`);
     expect(request.url).to.contain(`&jsver=${version}`);
-    expect(request.url).to.contain(`&vrref=`);
+    expect(request.url).to.contain(`&vrref=${encodeURIComponent('http://localhost:9876/')}`);
     expect(request.url).to.contain('&payload=');
     expect(request.url).to.contain('iiqid=f961ffb1-a0e1-4696-a9d2-a21d815bd344');
   });
