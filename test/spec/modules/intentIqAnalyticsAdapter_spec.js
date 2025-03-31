@@ -18,6 +18,8 @@ const defaultData = '{"pcid":"f961ffb1-a0e1-4696-a9d2-a21d815bd344", "group": "A
 const version = VERSION;
 const REPORT_ENDPOINT = 'https://reports.intentiq.com/report';
 const REPORT_ENDPOINT_GDPR = 'https://reports-gdpr.intentiq.com/report';
+const REPORT_SERVER_ADDRESS = 'https://test-reports.intentiq.com/report';
+
 
 const storage = getStorageManager({ moduleType: 'analytics', moduleName: 'iiqAnalytics' });
 
@@ -45,7 +47,7 @@ const getUserConfigWithReportingServerAddress = () => [
       'partner': partner,
       'unpack': null,
       'manualWinReportEnabled': false,
-      reportingServerAddress:'https://test-reports.intentiq.com/report'
+      'reportingServerAddress':REPORT_SERVER_ADDRESS
 
     },
     'storage': {
@@ -380,7 +382,7 @@ describe('IntentIQ tests all', function () {
 
     expect(server.requests.length).to.be.above(0);
     const request = server.requests[0];
-    expect(request.url).to.contain('https://test-reports.intentiq.com/report');
+    expect(request.url).to.contain(REPORT_SERVER_ADDRESS);
   });
 
   const testCasesVrref = [
