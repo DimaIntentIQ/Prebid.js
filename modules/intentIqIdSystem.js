@@ -5,7 +5,7 @@
  * @requires module:modules/userId
  */
 
-import {logError, isPlainObject,  isStr, isNumber} from '../src/utils.js';
+import {logError, isPlainObject, isStr, isNumber} from '../src/utils.js';
 import {ajax} from '../src/ajax.js';
 import {submodule} from '../src/hook.js'
 import AES from 'crypto-js/aes.js';
@@ -22,7 +22,7 @@ import {
   CLIENT_HINTS_KEY,
   EMPTY,
   GVLID,
-  VERSION, INVALID_ID, SCREEN_PARAMS, SYNC_REFRESH_MILL
+  VERSION, INVALID_ID, SCREEN_PARAMS, SYNC_REFRESH_MILL, META_DATA_CONSTANT
 } from '../libraries/intentIqConstants/intentIqConstants.js';
 import {SYNC_KEY} from '../libraries/intentIqUtils/getSyncKey.js';
 import {iiqPixelServerAddress, iiqServerAddress} from '../libraries/intentIqUtils/intentIqConfig.js';
@@ -46,7 +46,6 @@ const encoderCH = {
   wow64: 7,
   fullVersionList: 8
 };
-
 let sourceMetaData;
 let sourceMetaDataExternal;
 
