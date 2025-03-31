@@ -54,6 +54,9 @@ export const testClientHints = {
   wow64: false
 };
 
+const testAPILink = 'https://new-test-api.intentiq.com'
+const syncTestAPILink = 'https://new-test-sync.intentiq.com'
+
 const mockGAM = () => {
   const targetingObject = {};
   return {
@@ -580,6 +583,35 @@ describe('IntentIQ tests', function () {
       let request = server.requests[0];
 
       expect(request.url).to.contain(ENDPOINT_GDPR);
+    });
+
+    it('should make request to correct address with iiqServerAddress parameter', function() {
+      defaultConfigParams.params.iiqServerAddress = testAPILink
+      let callBackSpy = sinon.spy();
+      let submoduleCallback = intentIqIdSubmodule.getId({...defaultConfigParams}).callback;
+
+      submoduleCallback(callBackSpy);
+      let request = server.requests[0];
+
+      expect(request.url).to.contain(testAPILink);
+    });
+
+    it('should make request to correct address with iiqPixelServerAddress parameter', function() {
+      let wasCallbackCalled = false
+      const callbackConfigParams = { params: { partner: partner,
+        pai: pai,
+        pcid: pcid,
+        browserBlackList: 'Chrome',
+        iiqPixelServerAddress: syncTestAPILink,
+        callback: () => {
+          wasCallbackCalled = true
+        } } };
+
+      intentIqIdSubmodule.getId({...callbackConfigParams});
+
+      let request = server.requests[0];
+
+      expect(request.url).to.contain(syncTestAPILink);
     });
   });
 

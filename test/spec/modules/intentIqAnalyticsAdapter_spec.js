@@ -18,6 +18,8 @@ const defaultData = '{"pcid":"f961ffb1-a0e1-4696-a9d2-a21d815bd344", "group": "A
 const version = VERSION;
 const REPORT_ENDPOINT = 'https://reports.intentiq.com/report';
 const REPORT_ENDPOINT_GDPR = 'https://reports-gdpr.intentiq.com/report';
+const REPORT_SERVER_ADDRESS = 'https://test-reports.intentiq.com/report';
+
 
 const storage = getStorageManager({ moduleType: 'analytics', moduleName: 'iiqAnalytics' });
 
@@ -27,7 +29,26 @@ const getUserConfig = () => [
     'params': {
       'partner': partner,
       'unpack': null,
-      'manualWinReportEnabled': false
+      'manualWinReportEnabled': false,
+    },
+    'storage': {
+      'type': 'html5',
+      'name': 'intentIqId',
+      'expires': 60,
+      'refreshInSeconds': 14400
+    }
+  }
+];
+
+const getUserConfigWithReportingServerAddress = () => [
+  {
+    'name': 'intentIqId',
+    'params': {
+      'partner': partner,
+      'unpack': null,
+      'manualWinReportEnabled': false,
+      'reportingServerAddress':REPORT_SERVER_ADDRESS
+
     },
     'storage': {
       'type': 'html5',
@@ -346,6 +367,22 @@ describe('IntentIQ tests all', function () {
     expect(request.url).to.contain(`&vrref=${encodeURIComponent('http://localhost:9876/')}`);
     expect(request.url).to.contain('&payload=');
     expect(request.url).to.contain('iiqid=f961ffb1-a0e1-4696-a9d2-a21d815bd344');
+  });
+
+  it('should send request in reportingServerAddress no gdpr', function () {
+    const USERID_CONFIG_BROWSER = [...getUserConfigWithReportingServerAddress()];
+    USERID_CONFIG_BROWSER[0].params.browserBlackList = 'chrome,firefox';
+
+    config.getConfig.restore();
+    sinon.stub(config, 'getConfig').withArgs('userSync.userIds').returns(USERID_CONFIG_BROWSER);
+    detectBrowserStub = sinon.stub(detectBrowserUtils, 'detectBrowser').returns('safari');
+
+    localStorage.setItem(FIRST_PARTY_KEY, defaultData);
+    events.emit(EVENTS.BID_WON, wonRequest);
+
+    expect(server.requests.length).to.be.above(0);
+    const request = server.requests[0];
+    expect(request.url).to.contain(REPORT_SERVER_ADDRESS);
   });
 
   const testCasesVrref = [

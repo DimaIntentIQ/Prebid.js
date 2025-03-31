@@ -11,11 +11,10 @@ import {appendVrrefAndFui, getReferrer} from '../libraries/intentIqUtils/getReff
 import {getCmpData} from '../libraries/intentIqUtils/getCmpData.js'
 import {CLIENT_HINTS_KEY, FIRST_PARTY_KEY, VERSION} from '../libraries/intentIqConstants/intentIqConstants.js';
 import {readData, defineStorageType} from '../libraries/intentIqUtils/storageUtils.js';
+import {reportingServerAddress} from '../libraries/intentIqUtils/IntentIqConfig.js';
 
 const MODULE_NAME = 'iiqAnalytics'
 const analyticsType = 'endpoint';
-const REPORT_ENDPOINT = 'https://reports.intentiq.com/report';
-const REPORT_ENDPOINT_GDPR = 'https://reports-gdpr.intentiq.com/report';
 const storage = getStorageManager({moduleType: MODULE_TYPE_ANALYTICS, moduleName: MODULE_NAME});
 const prebidVersion = '$prebid.version$';
 export const REPORTER_ID = Date.now() + '_' + getRandom(0, 1000);
@@ -59,7 +58,21 @@ const PARAMS_NAMES = {
   adType: 'adType'
 };
 
-let iiqAnalyticsAnalyticsAdapter = Object.assign(adapter({defaultUrl: REPORT_ENDPOINT, analyticsType}), {
+function getIntentIqConfig() {
+  return config.getConfig('userSync.userIds')?.find(m => m.name === 'intentIqId');
+}
+
+const DEFAULT_URL = 'https://reports.intentiq.com/report'
+
+const getDataForDefineURL = () => {
+  const iiqConfig = getIntentIqConfig()
+  const cmpData = getCmpData();
+  const gdprDetected = cmpData.gdprString;
+
+  return [iiqConfig, gdprDetected]
+}
+
+let iiqAnalyticsAnalyticsAdapter = Object.assign(adapter({url: DEFAULT_URL, analyticsType}), {
   initOptions: {
     lsValueInitialized: false,
     partner: null,
@@ -90,10 +103,6 @@ const {
   BID_WON,
   BID_REQUESTED
 } = EVENTS;
-
-function getIntentIqConfig() {
-  return config.getConfig('userSync.userIds')?.find(m => m.name === 'intentIqId');
-}
 
 function initLsValues() {
   if (iiqAnalyticsAnalyticsAdapter.initOptions.lsValueInitialized) return;
@@ -306,8 +315,7 @@ function constructFullUrl(data) {
   report.push(data);
 
   const cmpData = getCmpData();
-  const gdprDetected = cmpData.gdprString;
-  const baseUrl = gdprDetected ? REPORT_ENDPOINT_GDPR : REPORT_ENDPOINT;
+  const baseUrl = reportingServerAddress(...getDataForDefineURL());
 
   let url = baseUrl + '?pid=' + iiqAnalyticsAnalyticsAdapter.initOptions.partner +
     '&mct=1' +

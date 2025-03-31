@@ -22,9 +22,10 @@ import {
   CLIENT_HINTS_KEY,
   EMPTY,
   GVLID,
-  VERSION, INVALID_ID, GDPR_ENDPOINT, VR_ENDPOINT, SYNC_ENDPOINT, SCREEN_PARAMS, GDPR_SYNC_ENDPOINT, SYNC_REFRESH_MILL, META_DATA_CONSTANT
+  VERSION, INVALID_ID, SCREEN_PARAMS, SYNC_REFRESH_MILL, META_DATA_CONSTANT
 } from '../libraries/intentIqConstants/intentIqConstants.js';
 import {SYNC_KEY} from '../libraries/intentIqUtils/getSyncKey.js';
+import {iiqPixelServerAddress, iiqServerAddress} from '../libraries/intentIqUtils/intentIqConfig.js';
 
 /**
  * @typedef {import('../modules/userId/index.js').Submodule} Submodule
@@ -156,7 +157,7 @@ function addMetaData(url, data) {
 export function createPixelUrl(firstPartyData, clientHints, configParams, partnerData, cmpData) {
   const deviceInfo = collectDeviceInfo()
 
-  let url = cmpData.gdprString ? GDPR_SYNC_ENDPOINT : SYNC_ENDPOINT;
+  let url = iiqPixelServerAddress(configParams, cmpData.gdprString);
   url += '/profiles_engine/ProfilesEngineServlet?at=20&mi=10&secure=1'
   url += '&dpi=' + configParams.partner;
   url = appendFirstPartyData(url, firstPartyData, partnerData);
@@ -420,7 +421,7 @@ export const intentIqIdSubmodule = {
     }
 
     // use protocol relative urls for http or https
-    let url = `${gdprDetected ? GDPR_ENDPOINT : VR_ENDPOINT}/profiles_engine/ProfilesEngineServlet?at=39&mi=10&dpi=${configParams.partner}&pt=17&dpn=1`;
+    let url = `${iiqServerAddress(configParams, gdprDetected)}/profiles_engine/ProfilesEngineServlet?at=39&mi=10&dpi=${configParams.partner}&pt=17&dpn=1`;
     url += configParams.pcid ? '&pcid=' + encodeURIComponent(configParams.pcid) : '';
     url += configParams.pai ? '&pai=' + encodeURIComponent(configParams.pai) : '';
     url = appendFirstPartyData(url, firstPartyData, partnerData);
