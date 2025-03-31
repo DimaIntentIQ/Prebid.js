@@ -45,7 +45,9 @@ Please find below list of paramters that could be used in configuring Intent IQ 
 | params.domainName              | Optional | String   | Specifies the domain of the page in which the IntentIQ object is currently running and serving the impression. This domain will be used later in the revenue reporting breakdown by domain. For example, cnn.com. It identifies the primary source of requests to the IntentIQ servers, even within nested web pages.                     | `"currentDomain.com"`                         |
 | params.gamObjectReference      | Optional | Object   | This is a reference to the Google Ad Manager (GAM) object, which will be used to set targeting. If this parameter is not provided, the group reporting will not be configured.                                                                                                                                                            | `googletag`                                   |
 | params.gamParameterName        | Optional | String   | The name of the targeting parameter that will be used to pass the group. If not specified, the default value is `intent_iq_group`.                                                                                                                                                                                                        | `"intent_iq_group"`                           |
-| params.adUnitConfig                   | Optional | Number   | Determines how the placementId parameter is extracted in the report (default is 1). Possible values: 1 – adUnitCode first, 2 – placementId first, 3 – only adUnitCode, 4 – only placementId                                                                                                                                                    | `1`                                           |
+| params.adUnitConfig            | Optional | Number   | Determines how the placementId parameter is extracted in the report (default is 1). Possible values: 1 – adUnitCode first, 2 – placementId first, 3 – only adUnitCode, 4 – only placementId                                                                                                                                               | `1`                                           |
+| params.sourceMetaData          | Optional | String   | This metadata can be provided by the partner and will be included in the requests URL as a query parameter                                                                                                                                                                                                                          | `"123.123.123.123"`                             |
+| params.sourceMetaDataExternal  | Optional | Number   | This metadata can be provided by the partner and will be included in the requests URL as a query parameter                                                                                                                                                                                                                          | `123456`                                      |
 
 ### Configuration example
 
@@ -61,7 +63,9 @@ pbjs.setConfig({
                 callback: (data, group) => window.pbjs.requestBids(),
                 manualWinReportEnabled: true,
                 domainName: "currentDomain.com",
-                adUnitConfig: 1 // Extracting placementId strategy (adUnitCode or placementId order of priorities)
+                adUnitConfig: 1, // Extracting placementId strategy (adUnitCode or placementId order of priorities)
+                sourceMetaData: "123.123.123.123", // Optional parameter
+                sourceMetaDataExternal: 123456 // Optional parameter
             },
             storage: {
                 type: "html5",

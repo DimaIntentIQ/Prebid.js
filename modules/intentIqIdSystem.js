@@ -5,7 +5,7 @@
  * @requires module:modules/userId
  */
 
-import {logError, isPlainObject} from '../src/utils.js';
+import {logError, isPlainObject, isStr, isNumber} from '../src/utils.js';
 import {ajax} from '../src/ajax.js';
 import {submodule} from '../src/hook.js'
 import AES from 'crypto-js/aes.js';
@@ -22,7 +22,7 @@ import {
   CLIENT_HINTS_KEY,
   EMPTY,
   GVLID,
-  VERSION, INVALID_ID, GDPR_ENDPOINT, VR_ENDPOINT, SYNC_ENDPOINT, SCREEN_PARAMS, GDPR_SYNC_ENDPOINT, SYNC_REFRESH_MILL
+  VERSION, INVALID_ID, GDPR_ENDPOINT, VR_ENDPOINT, SYNC_ENDPOINT, SCREEN_PARAMS, GDPR_SYNC_ENDPOINT, SYNC_REFRESH_MILL, META_DATA_CONSTANT
 } from '../libraries/intentIqConstants/intentIqConstants.js';
 import {SYNC_KEY} from '../libraries/intentIqUtils/getSyncKey.js';
 
@@ -45,6 +45,8 @@ const encoderCH = {
   wow64: 7,
   fullVersionList: 8
 };
+let sourceMetaData;
+let sourceMetaDataExternal;
 
 export let firstPartyData;
 
@@ -126,6 +128,31 @@ function appendCMPData (url, cmpData) {
   return url
 }
 
+/**
+ * Translate and validate sourceMetaData
+ */
+export function translateMetadata(data) {
+  try {
+    const d = data.split('.');
+    return (
+      ((+d[0] * META_DATA_CONSTANT + +d[1]) * META_DATA_CONSTANT + +d[2]) * META_DATA_CONSTANT +
+      +d[3]
+    );
+  } catch (e) {
+    return NaN;
+  }
+}
+
+/**
+ * Add sourceMetaData to URL if valid
+ */
+function addMetaData(url, data) {
+  if (typeof data !== 'number' || isNaN(data)) {
+    return url;
+  }
+  return url + '&fbp=' + data;
+}
+
 export function createPixelUrl(firstPartyData, clientHints, configParams, partnerData, cmpData) {
   const deviceInfo = collectDeviceInfo()
 
@@ -139,7 +166,8 @@ export function createPixelUrl(firstPartyData, clientHints, configParams, partne
   url += VERSION ? '&jsver=' + VERSION : '';
   if (clientHints) url += '&uh=' + encodeURIComponent(clientHints);
   url = appendVrrefAndFui(url, configParams.domainName);
-  url = appendCMPData(url, cmpData)
+  url = appendCMPData(url, cmpData);
+  url = addMetaData(url, sourceMetaDataExternal || sourceMetaData);
   return url;
 }
 
@@ -258,6 +286,8 @@ export const intentIqIdSubmodule = {
 
     let gamObjectReference = isPlainObject(configParams.gamObjectReference) ? configParams.gamObjectReference : undefined;
     let gamParameterName = configParams.gamParameterName ? configParams.gamParameterName : 'intent_iq_group';
+    sourceMetaData = isStr(configParams.sourceMetaData) ? translateMetadata(configParams.sourceMetaData) : '';
+    sourceMetaDataExternal = isNumber(configParams.sourceMetaDataExternal) ? configParams.sourceMetaDataExternal : undefined;
 
     const allowedStorage = defineStorageType(config.enabledStorageTypes);
 
@@ -400,6 +430,7 @@ export const intentIqIdSubmodule = {
     url += clientHints ? '&uh=' + encodeURIComponent(clientHints) : '';
     url += VERSION ? '&jsver=' + VERSION : '';
     url += firstPartyData?.group ? '&testGroup=' + encodeURIComponent(firstPartyData.group) : '';
+    url = addMetaData(url, sourceMetaDataExternal || sourceMetaData);
 
     // Add vrref and fui to the URL
     url = appendVrrefAndFui(url, configParams.domainName);
