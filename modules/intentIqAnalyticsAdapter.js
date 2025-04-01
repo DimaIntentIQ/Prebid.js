@@ -11,7 +11,7 @@ import {appendVrrefAndFui, getReferrer} from '../libraries/intentIqUtils/getReff
 import {getCmpData} from '../libraries/intentIqUtils/getCmpData.js'
 import {CLIENT_HINTS_KEY, FIRST_PARTY_KEY, VERSION} from '../libraries/intentIqConstants/intentIqConstants.js';
 import {readData, defineStorageType} from '../libraries/intentIqUtils/storageUtils.js';
-import {reportingServerAddress} from '../libraries/intentIqUtils/IntentIqConfig.js';
+import {reportingServerAddress} from '../libraries/intentIqUtils/intentIqConfig.js';
 
 const MODULE_NAME = 'iiqAnalytics'
 const analyticsType = 'endpoint';
@@ -82,7 +82,8 @@ let iiqAnalyticsAnalyticsAdapter = Object.assign(adapter({url: DEFAULT_URL, anal
     eidl: null,
     lsIdsInitialized: false,
     manualWinReportEnabled: false,
-    domainName: null
+    domainName: null,
+    siloEnabled: false
   },
   track({eventType, args}) {
     switch (eventType) {
@@ -117,6 +118,8 @@ function initLsValues() {
       typeof iiqConfig.params?.browserBlackList === 'string' ? iiqConfig.params.browserBlackList.toLowerCase() : '';
     iiqAnalyticsAnalyticsAdapter.initOptions.manualWinReportEnabled = iiqConfig.params?.manualWinReportEnabled || false;
     iiqAnalyticsAnalyticsAdapter.initOptions.domainName = iiqConfig.params?.domainName || '';
+    iiqAnalyticsAnalyticsAdapter.initOptions.siloEnabled = 
+      typeof iiqConfig.params?.siloEnabled === 'boolean' ? iiqConfig.params.siloEnabled : false;
   } else {
     iiqAnalyticsAnalyticsAdapter.initOptions.lsValueInitialized = false;
     iiqAnalyticsAnalyticsAdapter.initOptions.partner = -1;
@@ -126,7 +129,10 @@ function initLsValues() {
 function initReadLsIds() {
   try {
     iiqAnalyticsAnalyticsAdapter.initOptions.dataInLs = null;
-    iiqAnalyticsAnalyticsAdapter.initOptions.fpid = JSON.parse(readData(FIRST_PARTY_KEY, allowedStorage, storage));
+    iiqAnalyticsAnalyticsAdapter.initOptions.fpid = JSON.parse(readData(
+      `${FIRST_PARTY_KEY}${iiqAnalyticsAnalyticsAdapter.initOptions.siloEnabled ? '_p_' + iiqAnalyticsAnalyticsAdapter.initOptions.partner : ''}`, 
+      allowedStorage, storage
+    ));
     if (iiqAnalyticsAnalyticsAdapter.initOptions.fpid) {
       iiqAnalyticsAnalyticsAdapter.initOptions.currentGroup = iiqAnalyticsAnalyticsAdapter.initOptions.fpid.group;
     }
