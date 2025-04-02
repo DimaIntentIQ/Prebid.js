@@ -69,7 +69,8 @@ let iiqAnalyticsAnalyticsAdapter = Object.assign(adapter({defaultUrl: REPORT_END
     eidl: null,
     lsIdsInitialized: false,
     manualWinReportEnabled: false,
-    domainName: null
+    domainName: null,
+    reportMethod: null
   },
   track({eventType, args}) {
     switch (eventType) {
@@ -108,9 +109,11 @@ function initLsValues() {
       typeof iiqConfig.params?.browserBlackList === 'string' ? iiqConfig.params.browserBlackList.toLowerCase() : '';
     iiqAnalyticsAnalyticsAdapter.initOptions.manualWinReportEnabled = iiqConfig.params?.manualWinReportEnabled || false;
     iiqAnalyticsAnalyticsAdapter.initOptions.domainName = iiqConfig.params?.domainName || '';
+    iiqAnalyticsAnalyticsAdapter.initOptions.reportMethod = parseReportingMethod(iiqConfig.params?.reportMethod);
   } else {
     iiqAnalyticsAnalyticsAdapter.initOptions.lsValueInitialized = false;
     iiqAnalyticsAnalyticsAdapter.initOptions.partner = -1;
+    iiqAnalyticsAnalyticsAdapter.initOptions.reportMethod = 'GET'; 
   }
 }
 
@@ -159,8 +162,13 @@ function bidWon(args, isReportExternal) {
     initReadLsIds();
   }
   if ((isReportExternal && iiqAnalyticsAnalyticsAdapter.initOptions.manualWinReportEnabled) || (!isReportExternal && !iiqAnalyticsAnalyticsAdapter.initOptions.manualWinReportEnabled)) {
-    ajax(constructFullUrl(preparePayload(args, true)), undefined, null, {method: 'GET'});
-    logInfo('IIQ ANALYTICS -> BID WON')
+    const { url, method, payload } = constructFullUrl(preparePayload(args, true));
+    if (method === 'GET') {
+      ajax(url, undefined, null, {method: 'GET'});
+    } else if (method === 'POST') {
+      ajax(url, payload, null, {method: 'POST', contentType: 'application/x-www-form-urlencoded'});
+    }
+    logInfo('IIQ ANALYTICS -> BID WON');
     return true;
   }
   return false;
@@ -179,6 +187,20 @@ function defineGlobalVariableName() {
 
 function getRandom(start, end) {
   return Math.floor((Math.random() * (end - start + 1)) + start);
+}
+
+function parseReportingMethod(reportMethod) {
+  if (typeof reportMethod === 'string') {
+      switch (reportMethod.toUpperCase()) {
+          case 'GET':
+              return 'GET';
+          case 'POST':
+              return 'POST';
+          default:
+              return 'GET';
+      }
+    }
+  return 'GET';
 }
 
 export function preparePayload(data) {
@@ -302,6 +324,7 @@ function getDefaultDataObject() {
 
 function constructFullUrl(data) {
   let report = [];
+  const reportMethod = iiqAnalyticsAnalyticsAdapter.initOptions.reportMethod; // Use the initialized method
   data = btoa(JSON.stringify(data));
   report.push(data);
 
@@ -316,7 +339,6 @@ function constructFullUrl(data) {
     '&agid=' + REPORTER_ID +
     '&jsver=' + VERSION +
     '&source=pbjs' +
-    '&payload=' + JSON.stringify(report) +
     '&uh=' + encodeURIComponent(iiqAnalyticsAnalyticsAdapter.initOptions.clientsHints) +
     (cmpData.uspString ? '&us_privacy=' + encodeURIComponent(cmpData.uspString) : '') +
     (cmpData.gppString ? '&gpp=' + encodeURIComponent(cmpData.gppString) : '') +
@@ -325,7 +347,15 @@ function constructFullUrl(data) {
       : '&gdpr=0');
 
   url = appendVrrefAndFui(url, iiqAnalyticsAnalyticsAdapter.initOptions.domainName);
-  return url;
+
+  if (reportMethod === 'GET') {
+    url += '&payload=' + encodeURIComponent(JSON.stringify(report));
+    return { url, method: 'GET' };
+  } else if (reportMethod === 'POST') {
+    return { url, method: 'POST', payload: JSON.stringify(report) };
+  }
+
+  return { url, method: reportMethod };
 }
 
 iiqAnalyticsAnalyticsAdapter.originEnableAnalytics = iiqAnalyticsAnalyticsAdapter.enableAnalytics;
