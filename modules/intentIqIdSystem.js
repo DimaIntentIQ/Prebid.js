@@ -133,6 +133,13 @@ function appendCMPData (url, cmpData) {
   return url
 }
 
+function appendCounters (url) {
+  url += '&jaesc=' + encodeURIComponent(callCount);
+  url += '&jafc=' + encodeURIComponent(failCount);
+  url += '&jaensc=' + encodeURIComponent(noDataCount);
+  return url
+}
+
 /**
  * Translate and validate sourceMetaData
  */
@@ -443,6 +450,7 @@ export const intentIqIdSubmodule = {
     if (!shouldCallServer) {
       if (isGroupB) runtimeEids = { eids: [] };
       firePartnerCallback();
+      updateCountersAndStore(runtimeEids, allowedStorage, partnerData);
       return { id: runtimeEids.eids };
     }
 
@@ -453,7 +461,8 @@ export const intentIqIdSubmodule = {
     url = appendFirstPartyData(url, firstPartyData, partnerData);
     url += (partnerData.cttl) ? '&cttl=' + encodeURIComponent(partnerData.cttl) : '';
     url += (partnerData.rrtt) ? '&rrtt=' + encodeURIComponent(partnerData.rrtt) : '';
-    url = appendCMPData(url, cmpData)
+    url = appendCMPData(url, cmpData);
+    url += appendCounters(url);
     url += clientHints ? '&uh=' + encodeURIComponent(clientHints) : '';
     url += VERSION ? '&jsver=' + VERSION : '';
     url += firstPartyData?.group ? '&testGroup=' + encodeURIComponent(firstPartyData.group) : '';
@@ -572,7 +581,7 @@ export const intentIqIdSubmodule = {
         error: error => {
           logError(MODULE_NAME + ': ID fetch encountered an error', error);
           failCount++;
-          storeCounters(allowedStorage, partnerData);
+          updateCountersAndStore(runtimeEids, allowedStorage, partnerData);
           callback(runtimeEids);
         }
       };
