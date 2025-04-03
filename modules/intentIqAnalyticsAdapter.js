@@ -105,7 +105,7 @@ const {
   BID_REQUESTED
 } = EVENTS;
 
-function initLsValues() {
+function initAdapterConfig() {
   if (iiqAnalyticsAnalyticsAdapter.initOptions.lsValueInitialized) return;
   let iiqConfig = getIntentIqConfig()
 
@@ -156,7 +156,7 @@ function initReadLsIds() {
 
 function bidWon(args, isReportExternal) {
   if (!iiqAnalyticsAnalyticsAdapter.initOptions.lsValueInitialized) {
-    initLsValues();
+    initAdapterConfig();
   }
 
   if (isNaN(iiqAnalyticsAnalyticsAdapter.initOptions.partner) || iiqAnalyticsAnalyticsAdapter.initOptions.partner == -1) return;
@@ -357,10 +357,9 @@ function constructFullUrl(data) {
   url = appendVrrefAndFui(url, iiqAnalyticsAnalyticsAdapter.initOptions.domainName);
   if (reportMethod === 'POST') {
     return { url, method: 'POST', payload: JSON.stringify(report) };
-  } else {
-    url += '&payload=' + encodeURIComponent(JSON.stringify(report));
-    return { url, method: 'GET' };
   }
+  url += '&payload=' + encodeURIComponent(JSON.stringify(report));
+  return { url, method: 'GET' };
 }
 
 iiqAnalyticsAnalyticsAdapter.originEnableAnalytics = iiqAnalyticsAnalyticsAdapter.enableAnalytics;
