@@ -175,7 +175,7 @@ function bidWon(args, isReportExternal) {
     if (method === 'POST') {
       ajax(url, undefined, payload, {method, contentType: 'application/x-www-form-urlencoded'});
     } else {
-      ajax(url, undefined, null, {method: 'GET'});
+      ajax(url, undefined, null, {method});
     }
     logInfo('IIQ ANALYTICS -> BID WON');
     return true;
