@@ -173,7 +173,7 @@ function bidWon(args, isReportExternal) {
   if ((isReportExternal && iiqAnalyticsAnalyticsAdapter.initOptions.manualWinReportEnabled) || (!isReportExternal && !iiqAnalyticsAnalyticsAdapter.initOptions.manualWinReportEnabled)) {
     const { url, method, payload } = constructFullUrl(preparePayload(args, true));
     if (method === 'POST') {
-      ajax(url, undefined, payload, {method: 'POST', contentType: 'application/x-www-form-urlencoded'});
+      ajax(url, undefined, payload, {method, contentType: 'application/x-www-form-urlencoded'});
     } else {
       ajax(url, undefined, null, {method: 'GET'});
     }
