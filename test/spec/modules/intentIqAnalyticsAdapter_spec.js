@@ -139,6 +139,49 @@ describe('IntentIQ tests all', function () {
     server.reset();
   });
 
+  it('should send POST request with payload in request body if reportMethod is POST', function () {
+    const [userConfig] = getUserConfig();
+    userConfig.params.reportMethod = 'POST';
+  
+    config.getConfig.restore();
+    sinon.stub(config, 'getConfig').withArgs('userSync.userIds').returns([userConfig]);
+  
+    localStorage.setItem(FIRST_PARTY_KEY, defaultData);
+  
+    events.emit(EVENTS.BID_WON, wonRequest);
+  
+    const request = server.requests[0];
+  
+    const expectedData = preparePayload(wonRequest);
+    const expectedPayload = `["${btoa(JSON.stringify(expectedData))}"]`;
+  
+    expect(request.method).to.equal('POST');
+    expect(request.requestBody).to.equal(expectedPayload);
+  });
+
+  it('should send GET request with payload in query string if reportMethod is NOT provided', function () {
+    const [userConfig] = getUserConfig();
+    config.getConfig.restore();
+    sinon.stub(config, 'getConfig').withArgs('userSync.userIds').returns([userConfig]);
+  
+    localStorage.setItem(FIRST_PARTY_KEY, defaultData);
+    events.emit(EVENTS.BID_WON, wonRequest);
+  
+    const request = server.requests[0];
+  
+    expect(request.method).to.equal('GET');
+  
+    const url = new URL(request.url);
+    const payloadEncoded = url.searchParams.get('payload');
+    const decoded = JSON.parse(atob(JSON.parse(payloadEncoded)[0]));
+  
+    const expected = preparePayload(wonRequest);
+  
+    expect(decoded.partnerId).to.equal(expected.partnerId);
+    expect(decoded.adType).to.equal(expected.adType);
+    expect(decoded.prebidAuctionId).to.equal(expected.prebidAuctionId);
+  });
+  
   it('IIQ Analytical Adapter bid win report', function () {
     localStorage.setItem(FIRST_PARTY_KEY, defaultData);
     getWindowLocationStub = sinon.stub(utils, 'getWindowLocation').returns({href: 'http://localhost:9876'});
@@ -239,11 +282,13 @@ describe('IntentIQ tests all', function () {
     const request = server.requests[0];
     const dataToSend = preparePayload(wonRequest);
     const base64String = btoa(JSON.stringify(dataToSend));
-    const payload = `[%22${base64String}%22]`;
+    const payload = encodeURIComponent(JSON.stringify([base64String]));
     const expectedUrl = appendVrrefAndFui(REPORT_ENDPOINT +
-      `?pid=${partner}&mct=1&iiqid=${defaultDataObj.pcid}&agid=${REPORTER_ID}&jsver=${version}&source=pbjs&payload=${payload}&uh=&gdpr=0`, iiqAnalyticsAnalyticsAdapter.initOptions.domainName
+      `?pid=${partner}&mct=1&iiqid=${defaultDataObj.pcid}&agid=${REPORTER_ID}&jsver=${version}&source=pbjs&uh=&gdpr=0`, iiqAnalyticsAnalyticsAdapter.initOptions.domainName
     );
-    expect(request.url).to.equal(expectedUrl);
+    const urlWithPayload = expectedUrl+`&payload=${payload}`;
+
+    expect(request.url).to.equal(urlWithPayload);
     expect(dataToSend.pcid).to.equal(defaultDataObj.pcid)
   });
 
