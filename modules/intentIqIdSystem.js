@@ -155,20 +155,23 @@ function addMetaData(url, data) {
 }
 
 export function createPixelUrl(firstPartyData, clientHints, configParams, partnerData, cmpData) {
-  const deviceInfo = collectDeviceInfo()
+  const deviceInfo = collectDeviceInfo();
+  const browser = detectBrowser();
 
   let url = iiqPixelServerAddress(configParams, cmpData.gdprString);
-  url += '/profiles_engine/ProfilesEngineServlet?at=20&mi=10&secure=1'
+  url += '/profiles_engine/ProfilesEngineServlet?at=20&mi=10&secure=1';
   url += '&dpi=' + configParams.partner;
   url = appendFirstPartyData(url, firstPartyData, partnerData);
   url = addUniquenessToUrl(url);
   url += partnerData?.clientType ? '&idtype=' + partnerData.clientType : '';
-  if (deviceInfo) url = appendDeviceInfoToUrl(url, deviceInfo)
+  if (deviceInfo) url = appendDeviceInfoToUrl(url, deviceInfo);
   url += VERSION ? '&jsver=' + VERSION : '';
   if (clientHints) url += '&uh=' + encodeURIComponent(clientHints);
   url = appendVrrefAndFui(url, configParams.domainName);
   url = appendCMPData(url, cmpData);
   url = addMetaData(url, sourceMetaDataExternal || sourceMetaData);
+  url = handleAdditionalParams(browser, url, 1, configParams);
+
   return url;
 }
 
@@ -253,6 +256,35 @@ export function isCMPStringTheSame(fpData, cmpData) {
   const firstPartyDataCPString = `${fpData.gdprString}${fpData.gppString}${fpData.uspString}`;
   const cmpDataString = `${cmpData.gdprString}${cmpData.gppString}${cmpData.uspString}`;
   return firstPartyDataCPString === cmpDataString;
+}
+
+function handleAdditionalParams(browser, url, requestTo, additionalParams) {
+  let queryString = '';
+
+  if (!Array.isArray(additionalParams)) return url;
+
+  for (let i = 0; i < additionalParams.length; i++) {
+    const param = additionalParams[i];
+
+    if (
+      typeof param !== 'object' ||
+      !param.parameterName ||
+      !param.parameterValue ||
+      !param.destination ||
+      !Array.isArray(param.destination)
+    ) {
+      continue;
+    }
+
+    if (param.destination[requestTo]) {
+      queryString += `&agp_${encodeURIComponent(param.parameterName)}=${param.parameterValue}`;
+    }
+  }
+
+  const maxLength = maxRequestLength[browser] ?? 2048;
+  if ((url.length + queryString.length) > maxLength) return url;
+
+  return url + queryString;
 }
 
 /** @type {Submodule} */
