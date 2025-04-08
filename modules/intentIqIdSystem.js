@@ -275,6 +275,13 @@ function updateCountersAndStore(runtimeEids, allowedStorage, partnerData) {
   storeCounters(allowedStorage, partnerData);
 }
 
+function clearCountersAndStore(allowedStorage, partnerData) {
+  callCount = 0;
+  failCount = 0;
+  noDataCount = 0;
+  storeCounters(allowedStorage, partnerData);
+}
+
 function storeCounters(storage, partnerData) {
   partnerData.callCount = callCount;
   partnerData.failCount = failCount;
@@ -589,6 +596,7 @@ export const intentIqIdSubmodule = {
 
       partnerData.wsrvcll = true;
       storeData(FIRST_PARTY_DATA_KEY, JSON.stringify(partnerData), allowedStorage, firstPartyData);
+      clearCountersAndStore(allowedStorage, partnerData);
       ajax(url, callbacks, undefined, {method: 'GET', withCredentials: true});
     };
     const respObj = {callback: resp};
