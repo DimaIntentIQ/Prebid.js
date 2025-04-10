@@ -26,6 +26,7 @@ import {
 } from '../libraries/intentIqConstants/intentIqConstants.js';
 import {SYNC_KEY} from '../libraries/intentIqUtils/getSyncKey.js';
 import {iiqPixelServerAddress, iiqServerAddress} from '../libraries/intentIqUtils/intentIqConfig.js';
+import { handleAdditionalParams } from '../libraries/intentIqUtils/handleAdditionalParams.js';
 
 /**
  * @typedef {import('../modules/userId/index.js').Submodule} Submodule
@@ -170,7 +171,7 @@ export function createPixelUrl(firstPartyData, clientHints, configParams, partne
   url = appendVrrefAndFui(url, configParams.domainName);
   url = appendCMPData(url, cmpData);
   url = addMetaData(url, sourceMetaDataExternal || sourceMetaData);
-  url = handleAdditionalParams(browser, url, 1, configParams);
+  url = handleAdditionalParams(browser, url, 0, configParams);
 
   return url;
 }
@@ -258,35 +259,6 @@ export function isCMPStringTheSame(fpData, cmpData) {
   return firstPartyDataCPString === cmpDataString;
 }
 
-function handleAdditionalParams(browser, url, requestTo, additionalParams) {
-  let queryString = '';
-
-  if (!Array.isArray(additionalParams)) return url;
-
-  for (let i = 0; i < additionalParams.length; i++) {
-    const param = additionalParams[i];
-
-    if (
-      typeof param !== 'object' ||
-      !param.parameterName ||
-      !param.parameterValue ||
-      !param.destination ||
-      !Array.isArray(param.destination)
-    ) {
-      continue;
-    }
-
-    if (param.destination[requestTo]) {
-      queryString += `&agp_${encodeURIComponent(param.parameterName)}=${param.parameterValue}`;
-    }
-  }
-
-  const maxLength = maxRequestLength[browser] ?? 2048;
-  if ((url.length + queryString.length) > maxLength) return url;
-
-  return url + queryString;
-}
-
 /** @type {Submodule} */
 export const intentIqIdSubmodule = {
   /**
@@ -321,6 +293,7 @@ export const intentIqIdSubmodule = {
     let gamParameterName = configParams.gamParameterName ? configParams.gamParameterName : 'intent_iq_group';
     sourceMetaData = isStr(configParams.sourceMetaData) ? translateMetadata(configParams.sourceMetaData) : '';
     sourceMetaDataExternal = isNumber(configParams.sourceMetaDataExternal) ? configParams.sourceMetaDataExternal : undefined;
+    let additionalParams = configParams.additionalParams ? configParams.sourceMetaDataExternal : undefined;
 
     const allowedStorage = defineStorageType(config.enabledStorageTypes);
 
@@ -464,6 +437,7 @@ export const intentIqIdSubmodule = {
     url += VERSION ? '&jsver=' + VERSION : '';
     url += firstPartyData?.group ? '&testGroup=' + encodeURIComponent(firstPartyData.group) : '';
     url = addMetaData(url, sourceMetaDataExternal || sourceMetaData);
+    url = handleAdditionalParams(currentBrowserLowerCase, url, 1, additionalParams);
 
     // Add vrref and fui to the URL
     url = appendVrrefAndFui(url, configParams.domainName);

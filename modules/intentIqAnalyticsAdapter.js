@@ -12,6 +12,7 @@ import {getCmpData} from '../libraries/intentIqUtils/getCmpData.js'
 import {CLIENT_HINTS_KEY, FIRST_PARTY_KEY, VERSION} from '../libraries/intentIqConstants/intentIqConstants.js';
 import {readData, defineStorageType} from '../libraries/intentIqUtils/storageUtils.js';
 import {reportingServerAddress} from '../libraries/intentIqUtils/intentIqConfig.js';
+import { handleAdditionalParams } from '../libraries/intentIqUtils/handleAdditionalParams.js';
 
 const MODULE_NAME = 'iiqAnalytics'
 const analyticsType = 'endpoint';
@@ -19,6 +20,7 @@ const storage = getStorageManager({moduleType: MODULE_TYPE_ANALYTICS, moduleName
 const prebidVersion = '$prebid.version$';
 export const REPORTER_ID = Date.now() + '_' + getRandom(0, 1000);
 const allowedStorage = defineStorageType(config.enabledStorageTypes);
+const currentBrowserLowerCase = detectBrowser();
 
 const PARAMS_NAMES = {
   abTestGroup: 'abGroup',
@@ -83,7 +85,8 @@ let iiqAnalyticsAnalyticsAdapter = Object.assign(adapter({url: DEFAULT_URL, anal
     lsIdsInitialized: false,
     manualWinReportEnabled: false,
     domainName: null,
-    reportMethod: null
+    reportMethod: null,
+    additionalParams: null
   },
   track({eventType, args}) {
     switch (eventType) {
@@ -119,6 +122,7 @@ function initAdapterConfig() {
     iiqAnalyticsAnalyticsAdapter.initOptions.manualWinReportEnabled = iiqConfig.params?.manualWinReportEnabled || false;
     iiqAnalyticsAnalyticsAdapter.initOptions.domainName = iiqConfig.params?.domainName || '';
     iiqAnalyticsAnalyticsAdapter.initOptions.reportMethod = parseReportingMethod(iiqConfig.params?.reportMethod);
+    iiqAnalyticsAnalyticsAdapter.initOptions.additionalParams = iiqConfig.params?.additionalParams || null;
   } else {
     iiqAnalyticsAnalyticsAdapter.initOptions.lsValueInitialized = false;
     iiqAnalyticsAnalyticsAdapter.initOptions.partner = -1;
@@ -161,7 +165,6 @@ function bidWon(args, isReportExternal) {
 
   if (isNaN(iiqAnalyticsAnalyticsAdapter.initOptions.partner) || iiqAnalyticsAnalyticsAdapter.initOptions.partner == -1) return;
 
-  const currentBrowserLowerCase = detectBrowser();
   if (iiqAnalyticsAnalyticsAdapter.initOptions.browserBlackList?.includes(currentBrowserLowerCase)) {
     logError('IIQ ANALYTICS -> Browser is in blacklist!');
     return;
@@ -359,6 +362,7 @@ function constructFullUrl(data) {
     return { url, method: 'POST', payload: JSON.stringify(report) };
   }
   url += '&payload=' + encodeURIComponent(JSON.stringify(report));
+  url = handleAdditionalParams(currentBrowserLowerCase, url, 2, additionalParams);
   return { url, method: 'GET' };
 }
 
