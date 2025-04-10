@@ -49,6 +49,11 @@ const encoderCH = {
 };
 let sourceMetaData;
 let sourceMetaDataExternal;
+let FIRST_PARTY_DATA_KEY;
+let callCount = 0;
+let failCount = 0;
+let noDataCount = 0;
+
 
 export let firstPartyData;
 
@@ -127,6 +132,13 @@ function appendCMPData (url, cmpData) {
   url += cmpData.gdprApplies
     ? '&gdpr_consent=' + encodeURIComponent(cmpData.gdprString) + '&gdpr=1'
     : '&gdpr=0';
+  return url
+}
+
+function appendCounters (url) {
+  url += '&jaesc=' + encodeURIComponent(callCount);
+  url += '&jafc=' + encodeURIComponent(failCount);
+  url += '&jaensc=' + encodeURIComponent(noDataCount);
   return url
 }
 
@@ -259,6 +271,30 @@ export function isCMPStringTheSame(fpData, cmpData) {
   return firstPartyDataCPString === cmpDataString;
 }
 
+function updateCountersAndStore(runtimeEids, allowedStorage, partnerData) {
+  if (!runtimeEids?.eids?.length) {
+    noDataCount++;
+  } else {
+    callCount++;
+  }
+  storeCounters(allowedStorage, partnerData);
+}
+
+function clearCountersAndStore(allowedStorage, partnerData) {
+  callCount = 0;
+  failCount = 0;
+  noDataCount = 0;
+  storeCounters(allowedStorage, partnerData);
+}
+
+function storeCounters(storage, partnerData) {
+  partnerData.callCount = callCount;
+  partnerData.failCount = failCount;
+  partnerData.noDataCounter = noDataCount;
+  storeData(FIRST_PARTY_DATA_KEY, JSON.stringify(partnerData), storage, firstPartyData);
+}
+
+
 /** @type {Submodule} */
 export const intentIqIdSubmodule = {
   /**
@@ -285,27 +321,6 @@ export const intentIqIdSubmodule = {
    */
   getId(config) {
     const configParams = (config?.params) || {};
-    let decryptedData, callbackTimeoutID;
-    let callbackFired = false;
-    let runtimeEids = { eids: [] };
-
-    let gamObjectReference = isPlainObject(configParams.gamObjectReference) ? configParams.gamObjectReference : undefined;
-    let gamParameterName = configParams.gamParameterName ? configParams.gamParameterName : 'intent_iq_group';
-    sourceMetaData = isStr(configParams.sourceMetaData) ? translateMetadata(configParams.sourceMetaData) : '';
-    sourceMetaDataExternal = isNumber(configParams.sourceMetaDataExternal) ? configParams.sourceMetaDataExternal : undefined;
-    let additionalParams = configParams.additionalParams ? configParams.sourceMetaDataExternal : undefined;
-
-    const allowedStorage = defineStorageType(config.enabledStorageTypes);
-
-    let rrttStrtTime = 0;
-    let partnerData = {};
-    let shouldCallServer = false;
-    const FIRST_PARTY_DATA_KEY = `${FIRST_PARTY_KEY}_${configParams.partner}`;
-    const cmpData = getCmpData();
-    const gdprDetected = cmpData.gdprString;
-    firstPartyData = tryParse(readData(FIRST_PARTY_KEY, allowedStorage));
-    const isGroupB = firstPartyData?.group === WITHOUT_IIQ;
-    setGamReporting(gamObjectReference, gamParameterName, firstPartyData?.group)
 
     const firePartnerCallback = () => {
       if (configParams.callback && !callbackFired) {
@@ -316,16 +331,38 @@ export const intentIqIdSubmodule = {
       }
     }
 
-    callbackTimeoutID = setTimeout(() => {
-      firePartnerCallback();
-    }, configParams.timeoutInMillis || 500
-    );
-
     if (typeof configParams.partner !== 'number') {
       logError('User ID - intentIqId submodule requires a valid partner to be defined');
       firePartnerCallback()
       return;
     }
+
+    let decryptedData, callbackTimeoutID;
+    let callbackFired = false;
+    let runtimeEids = { eids: [] };
+
+    let gamObjectReference = isPlainObject(configParams.gamObjectReference) ? configParams.gamObjectReference : undefined;
+    let gamParameterName = configParams.gamParameterName ? configParams.gamParameterName : 'intent_iq_group';
+    sourceMetaData = isStr(configParams.sourceMetaData) ? translateMetadata(configParams.sourceMetaData) : '';
+    sourceMetaDataExternal = isNumber(configParams.sourceMetaDataExternal) ? configParams.sourceMetaDataExternal : undefined;
+    let additionalParams = configParams.additionalParams ? configParams.sourceMetaDataExternal : undefined;
+    FIRST_PARTY_DATA_KEY = `${FIRST_PARTY_KEY}_${configParams.partner}`;
+
+    const allowedStorage = defineStorageType(config.enabledStorageTypes);
+
+    let rrttStrtTime = 0;
+    let partnerData = {};
+    let shouldCallServer = false;
+    const cmpData = getCmpData();
+    const gdprDetected = cmpData.gdprString;
+    firstPartyData = tryParse(readData(FIRST_PARTY_KEY, allowedStorage));
+    const isGroupB = firstPartyData?.group === WITHOUT_IIQ;
+    setGamReporting(gamObjectReference, gamParameterName, firstPartyData?.group)
+
+    callbackTimeoutID = setTimeout(() => {
+      firePartnerCallback();
+    }, configParams.timeoutInMillis || 500
+    );
 
     const currentBrowserLowerCase = detectBrowser();
     const browserBlackList = typeof configParams.browserBlackList === 'string' ? configParams.browserBlackList.toLowerCase() : '';
@@ -381,6 +418,10 @@ export const intentIqIdSubmodule = {
     if (savedData) {
       partnerData = savedData;
 
+      if (typeof partnerData.callCount === 'number') callCount = partnerData.callCount;
+      if (typeof partnerData.failCount === 'number') failCount = partnerData.failCount;
+      if (typeof partnerData.noDataCounter === 'number') noDataCount = partnerData.noDataCounter;
+
       if (partnerData.wsrvcll) {
         partnerData.wsrvcll = false;
         storeData(FIRST_PARTY_DATA_KEY, JSON.stringify(partnerData), allowedStorage, firstPartyData);
@@ -422,6 +463,7 @@ export const intentIqIdSubmodule = {
     if (!shouldCallServer) {
       if (isGroupB) runtimeEids = { eids: [] };
       firePartnerCallback();
+      updateCountersAndStore(runtimeEids, allowedStorage, partnerData);
       return { id: runtimeEids.eids };
     }
 
@@ -432,7 +474,8 @@ export const intentIqIdSubmodule = {
     url = appendFirstPartyData(url, firstPartyData, partnerData);
     url += (partnerData.cttl) ? '&cttl=' + encodeURIComponent(partnerData.cttl) : '';
     url += (partnerData.rrtt) ? '&rrtt=' + encodeURIComponent(partnerData.rrtt) : '';
-    url = appendCMPData(url, cmpData)
+    url = appendCMPData(url, cmpData);
+    url += appendCounters(url);
     url += clientHints ? '&uh=' + encodeURIComponent(clientHints) : '';
     url += VERSION ? '&jsver=' + VERSION : '';
     url += firstPartyData?.group ? '&testGroup=' + encodeURIComponent(firstPartyData.group) : '';
@@ -542,6 +585,7 @@ export const intentIqIdSubmodule = {
               callback(runtimeEids);
               firePartnerCallback()
             }
+            updateCountersAndStore(runtimeEids, allowedStorage, partnerData);
             storeFirstPartyData();
           } else {
             callback(runtimeEids);
@@ -550,6 +594,8 @@ export const intentIqIdSubmodule = {
         },
         error: error => {
           logError(MODULE_NAME + ': ID fetch encountered an error', error);
+          failCount++;
+          updateCountersAndStore(runtimeEids, allowedStorage, partnerData);
           callback(runtimeEids);
         }
       };
@@ -557,6 +603,7 @@ export const intentIqIdSubmodule = {
 
       partnerData.wsrvcll = true;
       storeData(FIRST_PARTY_DATA_KEY, JSON.stringify(partnerData), allowedStorage, firstPartyData);
+      clearCountersAndStore(allowedStorage, partnerData);
       ajax(url, callbacks, undefined, {method: 'GET', withCredentials: true});
     };
     const respObj = {callback: resp};
