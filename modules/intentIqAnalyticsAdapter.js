@@ -362,7 +362,7 @@ function constructFullUrl(data) {
     return { url, method: 'POST', payload: JSON.stringify(report) };
   }
   url += '&payload=' + encodeURIComponent(JSON.stringify(report));
-  url = handleAdditionalParams(currentBrowserLowerCase, url, 2, additionalParams);
+  url = handleAdditionalParams(currentBrowserLowerCase, url, 2, iiqAnalyticsAnalyticsAdapter.initOptions.additionalParams);
   return { url, method: 'GET' };
 }
 
