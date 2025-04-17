@@ -49,8 +49,7 @@ Please find below list of paramters that could be used in configuring Intent IQ 
 | params.iiqServerAddress        | Optional | String   | The base URL for the IntentIQ API server. If `iiqServerAddress` is provided in `configParams`, it will be used.                    | `"https://api.example.com"`                    |
 | params.iiqPixelServerAddress   | Optional | String   | The base URL for the IntentIQ pixel synchronization server. If `iiqPixelServerAddress` is provided in `configParams`, it will be used.  | `"https://sync.example.com"`                   |
 | params.reportingServerAddress  | Optional | String   | The base URL for the IntentIQ reporting server. If `reportingServerAddress` is provided in `configParams`, it will be used.| `"https://reports.exmaple.com/report"`         |
-| params.reportMethod            | Optional | String   | Defines the HTTP method used to send the analytics report. If set to `"POST"`, the report payload will be sent in the body of the request. If set to `"GET"` (default), the payload will be included as a query parameter in the request URL.
-                                                            |`"GET"`        |
+| params.reportMethod            | Optional | String   | Defines the HTTP method used to send the analytics report. If set to `"POST"`, the report payload will be sent in the body of the request. If set to `"GET"` (default), the payload will be included as a query parameter in the request URL. | `"GET"`  |
 | params.groupChanged           | Optional | Function | A callback that is triggered every time the user’s A/B group is set or updated. | `(group) => console.log('Group changed:', group)` |
 
 
