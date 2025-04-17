@@ -65,7 +65,8 @@ pbjs.setConfig({
                 partner: 123456,     // valid partner id
                 timeoutInMillis: 500,
                 browserBlackList: "chrome",
-                callback: (data, group) => window.pbjs.requestBids(),
+                callback: (data) => window.pbjs.requestBids(),
+                groupChanged: (group) => console.log('Group is', group),
                 manualWinReportEnabled: true,
                 domainName: "currentDomain.com",
                 adUnitConfig: 1, // Extracting placementId strategy (adUnitCode or placementId order of priorities)
