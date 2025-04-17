@@ -5,7 +5,7 @@
  * @requires module:modules/userId
  */
 
-import {logError, isPlainObject, isStr, isNumber} from '../src/utils.js';
+import {logError, isPlainObject, isStr, isNumber, getWinDimensions} from '../src/utils.js';
 import {ajax} from '../src/ajax.js';
 import {submodule} from '../src/hook.js'
 import AES from 'crypto-js/aes.js';
@@ -18,7 +18,6 @@ import {
   FIRST_PARTY_KEY,
   WITH_IIQ, WITHOUT_IIQ,
   NOT_YET_DEFINED,
-  BLACK_LIST,
   CLIENT_HINTS_KEY,
   EMPTY,
   GVLID,
@@ -90,12 +89,13 @@ export function decryptData(encryptedText) {
 }
 
 function collectDeviceInfo() {
+  const windowDimensions = getWinDimensions();
   return {
-    windowInnerHeight: window.innerHeight,
-    windowInnerWidth: window.innerWidth,
-    devicePixelRatio: window.devicePixelRatio,
-    windowScreenHeight: window.screen.height,
-    windowScreenWidth: window.screen.width,
+    windowInnerHeight: windowDimensions.innerHeight,
+    windowInnerWidth: windowDimensions.innerWidth,
+    devicePixelRatio: windowDimensions.devicePixelRatio,
+    windowScreenHeight: windowDimensions.screen.height,
+    windowScreenWidth: windowDimensions.screen.width,
     language: navigator.language
   }
 }
@@ -323,7 +323,7 @@ export const intentIqIdSubmodule = {
         callbackFired = true;
         if (callbackTimeoutID) clearTimeout(callbackTimeoutID);
         if (isGroupB) runtimeEids = { eids: [] };
-        configParams.callback(runtimeEids, firstPartyData?.group || NOT_YET_DEFINED);
+        configParams.callback(runtimeEids);
       }
     }
 
@@ -339,6 +339,7 @@ export const intentIqIdSubmodule = {
 
     let gamObjectReference = isPlainObject(configParams.gamObjectReference) ? configParams.gamObjectReference : undefined;
     let gamParameterName = configParams.gamParameterName ? configParams.gamParameterName : 'intent_iq_group';
+    let groupChanged = typeof configParams.groupChanged === 'function' ? configParams.groupChanged : undefined;
     sourceMetaData = isStr(configParams.sourceMetaData) ? translateMetadata(configParams.sourceMetaData) : '';
     sourceMetaDataExternal = isNumber(configParams.sourceMetaDataExternal) ? configParams.sourceMetaDataExternal : undefined;
     FIRST_PARTY_DATA_KEY = `${FIRST_PARTY_KEY}_${configParams.partner}`;
@@ -352,7 +353,9 @@ export const intentIqIdSubmodule = {
     const gdprDetected = cmpData.gdprString;
     firstPartyData = tryParse(readData(FIRST_PARTY_KEY, allowedStorage));
     const isGroupB = firstPartyData?.group === WITHOUT_IIQ;
-    setGamReporting(gamObjectReference, gamParameterName, firstPartyData?.group)
+    setGamReporting(gamObjectReference, gamParameterName, firstPartyData?.group);
+
+    if (groupChanged) groupChanged(firstPartyData?.group || NOT_YET_DEFINED);
 
     callbackTimeoutID = setTimeout(() => {
       firePartnerCallback();
@@ -449,7 +452,7 @@ export const intentIqIdSubmodule = {
     // Check if current browser is in blacklist
     if (browserBlackList?.includes(currentBrowserLowerCase)) {
       logError('User ID - intentIqId submodule: browser is in blacklist! Data will be not provided.');
-      if (configParams.callback) configParams.callback('', BLACK_LIST);
+      if (configParams.callback) configParams.callback('');
       const url = createPixelUrl(firstPartyData, clientHints, configParams, partnerData, cmpData)
       sendSyncRequest(allowedStorage, url, configParams.partner, firstPartyData, newUser)
       return
@@ -516,6 +519,8 @@ export const intentIqIdSubmodule = {
                 firstPartyData.group = WITH_IIQ;
                 if (gamObjectReference) setGamReporting(gamObjectReference, gamParameterName, firstPartyData.group);
               }
+
+              if (groupChanged) groupChanged(firstPartyData?.group || NOT_YET_DEFINED);
             }
             if ('isOptedOut' in respJson) {
               if (respJson.isOptedOut !== firstPartyData.isOptedOut) {
