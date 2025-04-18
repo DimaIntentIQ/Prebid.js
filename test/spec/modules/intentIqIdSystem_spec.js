@@ -392,6 +392,44 @@ describe('IntentIQ tests', function () {
     expect(logErrorStub.called).to.be.true;
   });
 
+  it('should send spd from firstPartyData in localStorage in at=39 request', function () {
+    const spdValue = { foo: 'bar', value: 42 };
+    const encodedSpd = encodeURIComponent(JSON.stringify(spdValue));
+
+    localStorage.setItem(FIRST_PARTY_KEY, JSON.stringify({ spd: spdValue }));
+
+    const callBackSpy = sinon.spy();
+    const submoduleCallback = intentIqIdSubmodule.getId(defaultConfigParams).callback;
+  
+    submoduleCallback(callBackSpy);
+    const request = server.requests[0];
+  
+    expect(request.url).to.contain(`&spd=${encodedSpd}`);
+  });
+
+  it('should save spd to firstPartyData in localStorage if present in response', function () {
+    const spdValue = { foo: 'bar', value: 42 };
+    let callBackSpy = sinon.spy();
+    const submoduleCallback = intentIqIdSubmodule.getId(defaultConfigParams).callback;
+  
+    submoduleCallback(callBackSpy);
+    const request = server.requests[0];
+  
+    request.respond(
+      200,
+      responseHeader,
+      JSON.stringify({ pid: 'test_pid', data: 'test_personid', ls: true, spd: spdValue })
+    );
+  
+    const storedLs = readData(FIRST_PARTY_KEY, ['html5', 'cookie'], storage);
+    const parsedLs = JSON.parse(storedLs);
+    
+    expect(storedLs).to.not.be.null;
+    expect(callBackSpy.calledOnce).to.be.true;
+    expect(parsedLs).to.have.property('spd');
+    expect(parsedLs.spd).to.deep.equal(spdValue);
+  });
+
   describe('detectBrowserFromUserAgent', function () {
     it('should detect Chrome browser', function () {
       const userAgent = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36';

@@ -269,6 +269,7 @@ export const intentIqIdSubmodule = {
     const gdprDetected = cmpData.gdprString;
     firstPartyData = tryParse(readData(FIRST_PARTY_KEY, allowedStorage));
     const isGroupB = firstPartyData?.group === WITHOUT_IIQ;
+    const spdParam = firstPartyData?.spd ? encodeURIComponent(typeof firstPartyData.spd === 'object' ? JSON.stringify(firstPartyData.spd) : firstPartyData.spd) : '';
     setGamReporting(gamObjectReference, gamParameterName, firstPartyData?.group)
 
     const firePartnerCallback = () => {
@@ -400,6 +401,7 @@ export const intentIqIdSubmodule = {
     url += clientHints ? '&uh=' + encodeURIComponent(clientHints) : '';
     url += VERSION ? '&jsver=' + VERSION : '';
     url += firstPartyData?.group ? '&testGroup=' + encodeURIComponent(firstPartyData.group) : '';
+    url += spdParam ? '&spd=' + spdParam : '';
 
     // Add vrref and fui to the URL
     url = appendVrrefAndFui(url, configParams.domainName);
@@ -488,6 +490,11 @@ export const intentIqIdSubmodule = {
 
             if ('sid' in respJson) {
               partnerData.siteId = respJson.sid;
+            }
+
+            if ('spd' in respJson) {
+              // server provided data
+              firstPartyData.spd = respJson.spd;
             }
 
             if (rrttStrtTime && rrttStrtTime > 0) {
