@@ -121,10 +121,10 @@ function initReadLsIds() {
     if (iiqAnalyticsAnalyticsAdapter.initOptions.fpid) {
       iiqAnalyticsAnalyticsAdapter.initOptions.currentGroup = iiqAnalyticsAnalyticsAdapter.initOptions.fpid.group;
 
-      const rawSpd = iiqAnalyticsAnalyticsAdapter.initOptions.fpid.spd;
-      if (rawSpd) {
+      const spdParam = iiqAnalyticsAnalyticsAdapter.initOptions.fpid.spd;
+      if (spdParam) {
         iiqAnalyticsAnalyticsAdapter.initOptions.spd = encodeURIComponent(
-          typeof rawSpd === 'object' ? JSON.stringify(rawSpd) : rawSpd
+          typeof spdParam === 'object' ? JSON.stringify(spdParam) : spdParam
         );
       }
     }
