@@ -392,11 +392,69 @@ describe('IntentIQ tests', function () {
     expect(logErrorStub.called).to.be.true;
   });
 
+  it('should send sync request and send spd in it', function () {
+    const spdValue = { foo: 'bar', value: 42 };
+    const encodedSpd = encodeURIComponent(JSON.stringify(spdValue));
+    const testData = {
+      pcid: '123',
+      isOptedOut: true,
+      date: 5,
+      cttl: 5,
+      spd: spdValue
+    };
+    localStorage.setItem(FIRST_PARTY_KEY, JSON.stringify(testData));
+
+    intentIqIdSubmodule.getId({params: {
+      partner: 10,
+      browserBlackList: 'chrome'
+      }
+    });
+    
+    const at20request = server.requests[0];   
+    expect(at20request.url).to.contain(`&spd=${encodedSpd}`);
+  });
+
+  it('should send sync request and send spd string in it ', function () {
+    const spdValue = 'server provided data';
+    const encodedSpd = encodeURIComponent(spdValue);
+    const testData = {
+      pcid: '123',
+      isOptedOut: true,
+      date: 5,
+      cttl: 5,
+      spd: spdValue
+    };
+    localStorage.setItem(FIRST_PARTY_KEY, JSON.stringify(testData));
+
+    intentIqIdSubmodule.getId({params: {
+      partner: 10,
+      browserBlackList: 'chrome'
+      }
+    });
+    
+    const at20request = server.requests[0];   
+    expect(at20request.url).to.contain(`&spd=${encodedSpd}`);
+  });
+  
   it('should send spd from firstPartyData in localStorage in at=39 request', function () {
     const spdValue = { foo: 'bar', value: 42 };
     const encodedSpd = encodeURIComponent(JSON.stringify(spdValue));
 
-    localStorage.setItem(FIRST_PARTY_KEY, JSON.stringify({ spd: spdValue }));
+    localStorage.setItem(FIRST_PARTY_KEY, JSON.stringify({ pcid: '123', spd: spdValue }));
+
+    const callBackSpy = sinon.spy();
+    const submoduleCallback = intentIqIdSubmodule.getId(defaultConfigParams).callback;
+  
+    submoduleCallback(callBackSpy);
+    const request = server.requests[0];
+    
+    expect(request.url).to.contain(`&spd=${encodedSpd}`);
+  });
+
+  it('should send spd string from firstPartyData in localStorage in at=39 request', function () {
+    const spdValue = 'spd string';
+    const encodedSpd = encodeURIComponent(spdValue);
+    localStorage.setItem(FIRST_PARTY_KEY, JSON.stringify({ pcid: '123', spd: spdValue }));
 
     const callBackSpy = sinon.spy();
     const submoduleCallback = intentIqIdSubmodule.getId(defaultConfigParams).callback;
