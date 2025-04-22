@@ -166,6 +166,7 @@ function addMetaData(url, data) {
   return url + '&fbp=' + data;
 }
 
+
 export function createPixelUrl(firstPartyData, clientHints, configParams, partnerData, cmpData) {
   const deviceInfo = collectDeviceInfo()
 
