@@ -788,6 +788,29 @@ describe('IntentIQ tests', function () {
     expect(request.url).to.include('&fbp=123');
   });
 
+  it('should store first party data under the silo key when siloEnabled is true', function () {
+    const configParams = { params: {...allConfigParams.params, siloEnabled: true} };
+    
+    intentIqIdSubmodule.getId(configParams);
+    const expectedKey = FIRST_PARTY_KEY + '_p_' + configParams.params.partner;
+    const storedData = localStorage.getItem(expectedKey);
+    expect(storedData).to.be.a('string');
+    expect(localStorage.getItem(FIRST_PARTY_KEY)).to.be.null;
+
+    const parsed = JSON.parse(storedData);
+    expect(parsed).to.have.property('pcid');
+  });
+
+  it('should send siloEnabled value in the request', function () {
+    let callBackSpy = sinon.spy();
+    const configParams = { params: {...allConfigParams.params, siloEnabled: true} };
+    let submoduleCallback = intentIqIdSubmodule.getId(configParams).callback;
+    submoduleCallback(callBackSpy);
+
+    let request = server.requests[0];
+
+    expect(request.url).to.contain(`&japs=${configParams.params.siloEnabled}`);
+
   it('should increment callCount when valid eids are returned', function () {
     const firstPartyDataKey = '_iiq_fdata_' + partner;
     const partnerData = { callCount: 0, failCount: 0, noDataCounter: 0 };

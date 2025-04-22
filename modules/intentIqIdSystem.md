@@ -51,8 +51,8 @@ Please find below list of paramters that could be used in configuring Intent IQ 
 | params.reportingServerAddress  | Optional | String   | The base URL for the IntentIQ reporting server. If `reportingServerAddress` is provided in `configParams`, it will be used.| `"https://reports.exmaple.com/report"`         |
 | params.reportMethod            | Optional | String   | Defines the HTTP method used to send the analytics report. If set to `"POST"`, the report payload will be sent in the body of the request. If set to `"GET"` (default), the payload will be included as a query parameter in the request URL. | `"GET"`  |
 | params.groupChanged           | Optional | Function | A callback that is triggered every time the user’s A/B group is set or updated. | `(group) => console.log('Group changed:', group)` |
-
-
+| params.reportMethod            | Optional | String   | Defines the HTTP method used to send the analytics report. If set to `"POST"`, the report payload will be sent in the body of the request. If set to `"GET"` (default), the payload will be included as a query parameter in the request URL.                                                            |`"GET"`        |
+| params.siloEnabled             | Optional | Boolean  | Determines if first-party data is stored in a siloed storage key. When set to `true`, first-party data is stored under a modified key that appends `_p_` plus the partner value rather than using the default storage key. The default value is `false`.                                                                          | `true`                                        |
 
 ### Configuration example
 

@@ -47,7 +47,7 @@ const getUserConfigWithReportingServerAddress = () => [
       'partner': partner,
       'unpack': null,
       'manualWinReportEnabled': false,
-      'reportingServerAddress':REPORT_SERVER_ADDRESS
+      'reportingServerAddress': REPORT_SERVER_ADDRESS
 
     },
     'storage': {
@@ -428,6 +428,22 @@ describe('IntentIQ tests all', function () {
     expect(server.requests.length).to.be.above(0);
     const request = server.requests[0];
     expect(request.url).to.contain(REPORT_SERVER_ADDRESS);
+  });
+
+  it('should use correct key if siloEnabled is true', function () {
+    const siloEnabled = true;
+    const USERID_CONFIG = [...getUserConfig()];
+    USERID_CONFIG[0].params.siloEnabled = siloEnabled;
+
+    config.getConfig.restore();
+    sinon.stub(config, 'getConfig').withArgs('userSync.userIds').returns(USERID_CONFIG);
+
+    localStorage.setItem(FIRST_PARTY_KEY, `${FIRST_PARTY_KEY}${siloEnabled ? '_p_' + partner : ''}`);
+    events.emit(EVENTS.BID_WON, wonRequest);
+
+    expect(server.requests.length).to.be.above(0);
+    const request = server.requests[0];
+    expect(request.url).to.contain(REPORT_ENDPOINT + '?pid=' + partner + '&mct=1');
   });
 
   const testCasesVrref = [
