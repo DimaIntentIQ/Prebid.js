@@ -97,6 +97,7 @@ function addUniquenessToUrl(url) {
   return url;
 }
 
+
 function appendDeviceInfoToUrl(url, deviceInfo) {
   const screenParamsString = Object.entries(SCREEN_PARAMS)
     .map(([index, param]) => {
