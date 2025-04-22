@@ -810,6 +810,7 @@ describe('IntentIQ tests', function () {
     let request = server.requests[0];
 
     expect(request.url).to.contain(`&japs=${configParams.params.siloEnabled}`);
+  });
 
   it('should increment callCount when valid eids are returned', function () {
     const firstPartyDataKey = '_iiq_fdata_' + partner;
