@@ -49,6 +49,7 @@ let sourceMetaData;
 let sourceMetaDataExternal;
 
 let FIRST_PARTY_KEY_FINAL = FIRST_PARTY_KEY;
+let FIRST_PARTY_DATA_KEY;
 let callCount = 0;
 let failCount = 0;
 let noDataCount = 0;
@@ -515,15 +516,15 @@ export const intentIqIdSubmodule = {
               if (respJson.tc == 41) {
                 firstPartyData.group = WITHOUT_IIQ;
                 storeData(FIRST_PARTY_KEY_FINAL, JSON.stringify(firstPartyData), allowedStorage, firstPartyData);
+                if (groupChanged) groupChanged(firstPartyData.group);
                 defineEmptyDataAndFireCallback();
                 if (gamObjectReference) setGamReporting(gamObjectReference, gamParameterName, firstPartyData.group);
                 return
               } else {
                 firstPartyData.group = WITH_IIQ;
                 if (gamObjectReference) setGamReporting(gamObjectReference, gamParameterName, firstPartyData.group);
+                if (groupChanged) groupChanged(firstPartyData.group);
               }
-
-              if (groupChanged) groupChanged(firstPartyData?.group || NOT_YET_DEFINED);
             }
             if ('isOptedOut' in respJson) {
               if (respJson.isOptedOut !== firstPartyData.isOptedOut) {

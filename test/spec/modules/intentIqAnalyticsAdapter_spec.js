@@ -286,7 +286,7 @@ describe('IntentIQ tests all', function () {
     const expectedUrl = appendVrrefAndFui(REPORT_ENDPOINT +
       `?pid=${partner}&mct=1&iiqid=${defaultDataObj.pcid}&agid=${REPORTER_ID}&jsver=${version}&source=pbjs&uh=&gdpr=0`, iiqAnalyticsAnalyticsAdapter.initOptions.domainName
     );
-    const urlWithPayload = expectedUrl+`&payload=${payload}`;
+    const urlWithPayload = expectedUrl + `&payload=${payload}`;
 
     expect(request.url).to.equal(urlWithPayload);
     expect(dataToSend.pcid).to.equal(defaultDataObj.pcid)
