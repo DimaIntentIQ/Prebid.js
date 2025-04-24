@@ -8,7 +8,7 @@ import * as events from 'src/events.js';
 import { getStorageManager } from 'src/storageManager.js';
 import sinon from 'sinon';
 import { REPORTER_ID, preparePayload } from '../../../modules/intentIqAnalyticsAdapter';
-import {FIRST_PARTY_KEY, VERSION} from '../../../libraries/intentIqConstants/intentIqConstants.js';
+import {FIRST_PARTY_KEY, PREBID, VERSION} from '../../../libraries/intentIqConstants/intentIqConstants.js';
 import * as detectBrowserUtils from '../../../libraries/intentIqUtils/detectBrowserUtils.js';
 import {getReferrer, appendVrrefAndFui} from '../../../libraries/intentIqUtils/getRefferer.js';
 import { gppDataHandler, uspDataHandler, gdprDataHandler } from '../../../src/consentHandler.js';
@@ -428,6 +428,16 @@ describe('IntentIQ tests all', function () {
     expect(server.requests.length).to.be.above(0);
     const request = server.requests[0];
     expect(request.url).to.contain(REPORT_SERVER_ADDRESS);
+  });
+
+  it('should include source parameter in report URL', function () {
+    localStorage.setItem(FIRST_PARTY_KEY, JSON.stringify(defaultData));  
+    
+    events.emit(EVENTS.BID_WON, wonRequest);
+    const request = server.requests[0];
+
+    expect(server.requests.length).to.be.above(0);
+    expect(request.url).to.include(`&source=${PREBID}`);
   });
 
   it('should use correct key if siloEnabled is true', function () {

@@ -12,7 +12,7 @@ import {storage, readData} from '../../../libraries/intentIqUtils/storageUtils.j
 import { gppDataHandler, uspDataHandler, gdprDataHandler } from '../../../src/consentHandler';
 import { clearAllCookies } from '../../helpers/cookies';
 import { detectBrowserFromUserAgent, detectBrowserFromUserAgentData } from '../../../libraries/intentIqUtils/detectBrowserUtils';
-import {CLIENT_HINTS_KEY, FIRST_PARTY_KEY, NOT_YET_DEFINED, WITH_IIQ} from '../../../libraries/intentIqConstants/intentIqConstants.js';
+import {CLIENT_HINTS_KEY, FIRST_PARTY_KEY, NOT_YET_DEFINED, WITH_IIQ, PREBID} from '../../../libraries/intentIqConstants/intentIqConstants.js';
 
 const partner = 10;
 const pai = '11';
@@ -182,6 +182,36 @@ describe('IntentIQ tests', function () {
     expect(intentIqIdSubmodule.decode('INVALID_ID')).to.equal(undefined);
     expect(intentIqIdSubmodule.decode('')).to.equal(undefined);
     expect(intentIqIdSubmodule.decode(undefined)).to.equal(undefined);
+  });
+
+  it('should send sync request and send source in it', function () {
+    const testData = {
+      pcid: '123',
+      isOptedOut: true,
+      date: 5,
+      cttl: 5,
+    };
+    localStorage.setItem(FIRST_PARTY_KEY, JSON.stringify(testData));
+
+    intentIqIdSubmodule.getId({params: {
+      partner: 10,
+      browserBlackList: 'chrome'
+      }
+    });
+
+    const at20request = server.requests[0];   
+    expect(at20request.url).to.contain(`&source=${PREBID}`);
+  });
+
+
+  it('should send at=39 request and send source in it', function () {
+    const callBackSpy = sinon.spy();
+    const submoduleCallback = intentIqIdSubmodule.getId(defaultConfigParams).callback;
+  
+    submoduleCallback(callBackSpy);
+    const request = server.requests[0];
+  
+    expect(request.url).to.contain(`&source=${PREBID}`);
   });
 
   it('should call the IntentIQ endpoint with only partner, pai', function () {
