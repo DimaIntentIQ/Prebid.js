@@ -11,6 +11,7 @@ import {submodule} from '../src/hook.js'
 import AES from 'crypto-js/aes.js';
 import Utf8 from 'crypto-js/enc-utf8.js';
 import {detectBrowser} from '../libraries/intentIqUtils/detectBrowserUtils.js';
+import {appendSPData} from '../libraries/intentIqUtils/urlUtils.js';
 import {appendVrrefAndFui} from '../libraries/intentIqUtils/getRefferer.js';
 import { getCmpData } from '../libraries/intentIqUtils/getCmpData.js';
 import {readData, storeData, defineStorageType, removeDataByKey} from '../libraries/intentIqUtils/storageUtils.js';
@@ -166,12 +167,6 @@ function addMetaData(url, data) {
     return url;
   }
   return url + '&fbp=' + data;
-}
-
-function appendSPData (url, firstPartyData) {
-  const spdParam = firstPartyData?.spd ? encodeURIComponent(typeof firstPartyData.spd === 'object' ? JSON.stringify(firstPartyData.spd) : firstPartyData.spd) : '';
-  url += spdParam ? '&spd=' + spdParam : '';
-  return url
 }
 
 export function createPixelUrl(firstPartyData, clientHints, configParams, partnerData, cmpData) {

@@ -7,6 +7,7 @@ import {config} from '../src/config.js';
 import {EVENTS} from '../src/constants.js';
 import {MODULE_TYPE_ANALYTICS} from '../src/activities/modules.js';
 import {detectBrowser} from '../libraries/intentIqUtils/detectBrowserUtils.js';
+import {appendSPData} from '../libraries/intentIqUtils/urlUtils.js';
 import {appendVrrefAndFui, getReferrer} from '../libraries/intentIqUtils/getRefferer.js';
 import {getCmpData} from '../libraries/intentIqUtils/getCmpData.js'
 import {CLIENT_HINTS_KEY, FIRST_PARTY_KEY, VERSION, PREBID} from '../libraries/intentIqConstants/intentIqConstants.js';
@@ -138,13 +139,6 @@ function initReadLsIds() {
     ));
     if (iiqAnalyticsAnalyticsAdapter.initOptions.fpid) {
       iiqAnalyticsAnalyticsAdapter.initOptions.currentGroup = iiqAnalyticsAnalyticsAdapter.initOptions.fpid.group;
-
-      const spdParam = iiqAnalyticsAnalyticsAdapter.initOptions.fpid.spd;
-      if (spdParam) {
-        iiqAnalyticsAnalyticsAdapter.initOptions.spd = encodeURIComponent(
-          typeof spdParam === 'object' ? JSON.stringify(spdParam) : spdParam
-        );
-      }
     }
     const partnerData = readData(FIRST_PARTY_KEY + '_' + iiqAnalyticsAnalyticsAdapter.initOptions.partner, allowedStorage, storage);
     const clientsHints = readData(CLIENT_HINTS_KEY, allowedStorage, storage) || '';
@@ -365,10 +359,10 @@ function constructFullUrl(data) {
     (cmpData.gppString ? '&gpp=' + encodeURIComponent(cmpData.gppString) : '') +
     (cmpData.gdprString
       ? '&gdpr_consent=' + encodeURIComponent(cmpData.gdprString) + '&gdpr=1'
-      : '&gdpr=0') +
-    (iiqAnalyticsAnalyticsAdapter.initOptions.spd ? '&spd=' + iiqAnalyticsAnalyticsAdapter.initOptions.spd : '');
-
+      : '&gdpr=0');
+  url = appendSPData(url, iiqAnalyticsAnalyticsAdapter.initOptions.fpid)
   url = appendVrrefAndFui(url, iiqAnalyticsAnalyticsAdapter.initOptions.domainName);
+
   if (reportMethod === 'POST') {
     return { url, method: 'POST', payload: JSON.stringify(report) };
   }

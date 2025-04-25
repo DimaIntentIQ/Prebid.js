@@ -478,8 +478,6 @@ describe('IntentIQ tests', function () {
     submoduleCallback(callBackSpy);
     const request = server.requests[0];
 
-    console.log(request)
-  
     expect(request.url).to.contain(`&spd=${encodedSpd}`);
     expect(request.url).to.contain(`at=39`);
   });
