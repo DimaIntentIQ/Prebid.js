@@ -138,6 +138,13 @@ function initReadLsIds() {
     ));
     if (iiqAnalyticsAnalyticsAdapter.initOptions.fpid) {
       iiqAnalyticsAnalyticsAdapter.initOptions.currentGroup = iiqAnalyticsAnalyticsAdapter.initOptions.fpid.group;
+
+      const spdParam = iiqAnalyticsAnalyticsAdapter.initOptions.fpid.spd;
+      if (spdParam) {
+        iiqAnalyticsAnalyticsAdapter.initOptions.spd = encodeURIComponent(
+          typeof spdParam === 'object' ? JSON.stringify(spdParam) : spdParam
+        );
+      }
     }
     const partnerData = readData(FIRST_PARTY_KEY + '_' + iiqAnalyticsAnalyticsAdapter.initOptions.partner, allowedStorage, storage);
     const clientsHints = readData(CLIENT_HINTS_KEY, allowedStorage, storage) || '';
@@ -358,7 +365,8 @@ function constructFullUrl(data) {
     (cmpData.gppString ? '&gpp=' + encodeURIComponent(cmpData.gppString) : '') +
     (cmpData.gdprString
       ? '&gdpr_consent=' + encodeURIComponent(cmpData.gdprString) + '&gdpr=1'
-      : '&gdpr=0');
+      : '&gdpr=0') +
+    (iiqAnalyticsAnalyticsAdapter.initOptions.spd ? '&spd=' + iiqAnalyticsAnalyticsAdapter.initOptions.spd : '');
 
   url = appendVrrefAndFui(url, iiqAnalyticsAnalyticsAdapter.initOptions.domainName);
   if (reportMethod === 'POST') {

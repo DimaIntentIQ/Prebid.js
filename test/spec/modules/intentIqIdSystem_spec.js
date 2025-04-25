@@ -184,15 +184,7 @@ describe('IntentIQ tests', function () {
     expect(intentIqIdSubmodule.decode(undefined)).to.equal(undefined);
   });
 
-  it('should send sync request and send source in it', function () {
-    const testData = {
-      pcid: '123',
-      isOptedOut: true,
-      date: 5,
-      cttl: 5,
-    };
-    localStorage.setItem(FIRST_PARTY_KEY, JSON.stringify(testData));
-
+  it('should send AT=20 request and send source in it', function () {
     intentIqIdSubmodule.getId({params: {
       partner: 10,
       browserBlackList: 'chrome'
@@ -201,6 +193,7 @@ describe('IntentIQ tests', function () {
 
     const at20request = server.requests[0];   
     expect(at20request.url).to.contain(`&source=${PREBID}`);
+    expect(at20request.url).to.contain(`at=20`);
   });
 
 
@@ -424,6 +417,94 @@ describe('IntentIQ tests', function () {
     );
     expect(callBackSpy.calledOnce).to.be.true;
     expect(logErrorStub.called).to.be.true;
+  });
+
+  it('should send AT=20 request and send spd in it', function () {
+    const spdValue = { foo: 'bar', value: 42 };
+    const encodedSpd = encodeURIComponent(JSON.stringify(spdValue));
+    localStorage.setItem(FIRST_PARTY_KEY, JSON.stringify({pcid: '123', spd: spdValue}));
+
+    intentIqIdSubmodule.getId({params: {
+      partner: 10,
+      browserBlackList: 'chrome'
+      }
+    });
+    
+    const at20request = server.requests[0];
+    expect(at20request.url).to.contain(`&spd=${encodedSpd}`);
+    expect(at20request.url).to.contain(`at=20`);
+  });
+
+  it('should send AT=20 request and send spd string in it ', function () {
+    const spdValue = 'server provided data';
+    const encodedSpd = encodeURIComponent(spdValue);
+    localStorage.setItem(FIRST_PARTY_KEY, JSON.stringify({pcid: '123', spd: spdValue}));
+
+    intentIqIdSubmodule.getId({params: {
+      partner: 10,
+      browserBlackList: 'chrome'
+      }
+    });
+    
+    const at20request = server.requests[0];   
+    expect(at20request.url).to.contain(`&spd=${encodedSpd}`);
+    expect(at20request.url).to.contain(`at=20`);
+  });
+  
+  it('should send spd from firstPartyData in localStorage in at=39 request', function () {
+    const spdValue = { foo: 'bar', value: 42 };
+    const encodedSpd = encodeURIComponent(JSON.stringify(spdValue));
+
+    localStorage.setItem(FIRST_PARTY_KEY, JSON.stringify({ pcid: '123', spd: spdValue }));
+
+    const callBackSpy = sinon.spy();
+    const submoduleCallback = intentIqIdSubmodule.getId(defaultConfigParams).callback;
+  
+    submoduleCallback(callBackSpy);
+    const request = server.requests[0];
+    
+    expect(request.url).to.contain(`&spd=${encodedSpd}`);
+    expect(request.url).to.contain(`at=39`);
+  });
+
+  it('should send spd string from firstPartyData in localStorage in at=39 request', function () {
+    const spdValue = 'spd string';
+    const encodedSpd = encodeURIComponent(spdValue);
+    localStorage.setItem(FIRST_PARTY_KEY, JSON.stringify({ pcid: '123', spd: spdValue }));
+
+    const callBackSpy = sinon.spy();
+    const submoduleCallback = intentIqIdSubmodule.getId(defaultConfigParams).callback;
+  
+    submoduleCallback(callBackSpy);
+    const request = server.requests[0];
+
+    console.log(request)
+  
+    expect(request.url).to.contain(`&spd=${encodedSpd}`);
+    expect(request.url).to.contain(`at=39`);
+  });
+
+  it('should save spd to firstPartyData in localStorage if present in response', function () {
+    const spdValue = { foo: 'bar', value: 42 };
+    let callBackSpy = sinon.spy();
+    const submoduleCallback = intentIqIdSubmodule.getId(defaultConfigParams).callback;
+  
+    submoduleCallback(callBackSpy);
+    const request = server.requests[0];
+  
+    request.respond(
+      200,
+      responseHeader,
+      JSON.stringify({ pid: 'test_pid', data: 'test_personid', ls: true, spd: spdValue })
+    );
+  
+    const storedLs = readData(FIRST_PARTY_KEY, ['html5', 'cookie'], storage);
+    const parsedLs = JSON.parse(storedLs);
+    
+    expect(storedLs).to.not.be.null;
+    expect(callBackSpy.calledOnce).to.be.true;
+    expect(parsedLs).to.have.property('spd');
+    expect(parsedLs.spd).to.deep.equal(spdValue);
   });
 
   describe('detectBrowserFromUserAgent', function () {
