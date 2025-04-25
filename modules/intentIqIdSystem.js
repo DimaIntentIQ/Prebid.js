@@ -11,6 +11,7 @@ import {submodule} from '../src/hook.js'
 import AES from 'crypto-js/aes.js';
 import Utf8 from 'crypto-js/enc-utf8.js';
 import {detectBrowser} from '../libraries/intentIqUtils/detectBrowserUtils.js';
+import {appendSPData} from '../libraries/intentIqUtils/urlUtils.js';
 import {appendVrrefAndFui} from '../libraries/intentIqUtils/getRefferer.js';
 import { getCmpData } from '../libraries/intentIqUtils/getCmpData.js';
 import {readData, storeData, defineStorageType, removeDataByKey} from '../libraries/intentIqUtils/storageUtils.js';
@@ -183,6 +184,7 @@ export function createPixelUrl(firstPartyData, clientHints, configParams, partne
   url = appendVrrefAndFui(url, configParams.domainName);
   url = appendCMPData(url, cmpData);
   url = addMetaData(url, sourceMetaDataExternal || sourceMetaData);
+  url = appendSPData(url, firstPartyData)
   url += '&source=' + PREBID;
   return url;
 }
@@ -476,11 +478,12 @@ export const intentIqIdSubmodule = {
     url += (partnerData.rrtt) ? '&rrtt=' + encodeURIComponent(partnerData.rrtt) : '';
     url = appendCMPData(url, cmpData);
     url += '&japs=' + encodeURIComponent(configParams.siloEnabled === true);
-    url += appendCounters(url);
+    url = appendCounters(url);
     url += clientHints ? '&uh=' + encodeURIComponent(clientHints) : '';
     url += VERSION ? '&jsver=' + VERSION : '';
     url += firstPartyData?.group ? '&testGroup=' + encodeURIComponent(firstPartyData.group) : '';
     url = addMetaData(url, sourceMetaDataExternal || sourceMetaData);
+    url = appendSPData(url, firstPartyData)
     url += '&source=' + PREBID;
 
     // Add vrref and fui to the URL
@@ -570,6 +573,11 @@ export const intentIqIdSubmodule = {
 
             if ('sid' in respJson) {
               partnerData.siteId = respJson.sid;
+            }
+
+            if ('spd' in respJson) {
+              // server provided data
+              firstPartyData.spd = respJson.spd;
             }
 
             if (rrttStrtTime && rrttStrtTime > 0) {

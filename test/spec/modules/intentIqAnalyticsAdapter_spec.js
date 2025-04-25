@@ -456,6 +456,36 @@ describe('IntentIQ tests all', function () {
     expect(request.url).to.contain(REPORT_ENDPOINT + '?pid=' + partner + '&mct=1');
   });
 
+  it('should include spd parameter from LS in report URL', function () {
+    const spdObject = { foo: 'bar', value: 42 };
+    const expectedSpdEncoded = encodeURIComponent(JSON.stringify(spdObject));
+
+    localStorage.setItem(FIRST_PARTY_KEY, JSON.stringify({...defaultData, spd: spdObject}));  
+    getWindowLocationStub = sinon.stub(utils, 'getWindowLocation').returns({ href: 'http://localhost:9876/' });
+
+    events.emit(EVENTS.BID_WON, wonRequest);
+
+    const request = server.requests[0];
+
+    expect(server.requests.length).to.be.above(0);
+    expect(request.url).to.include(`&spd=${expectedSpdEncoded}`);
+  });
+
+  it('should include spd parameter string from LS in report URL', function () {
+    const spdObject = 'server provided data';
+    const expectedSpdEncoded = encodeURIComponent(spdObject);
+
+    localStorage.setItem(FIRST_PARTY_KEY, JSON.stringify({...defaultData, spd: spdObject}));  
+    getWindowLocationStub = sinon.stub(utils, 'getWindowLocation').returns({ href: 'http://localhost:9876/' });
+
+    events.emit(EVENTS.BID_WON, wonRequest);
+
+    const request = server.requests[0];
+
+    expect(server.requests.length).to.be.above(0);
+    expect(request.url).to.include(`&spd=${expectedSpdEncoded}`);
+  });
+
   const testCasesVrref = [
     {
       description: 'domainName matches window.top.location.href',
