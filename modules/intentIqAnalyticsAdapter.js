@@ -20,7 +20,6 @@ const storage = getStorageManager({moduleType: MODULE_TYPE_ANALYTICS, moduleName
 const prebidVersion = '$prebid.version$';
 export const REPORTER_ID = Date.now() + '_' + getRandom(0, 1000);
 const allowedStorage = defineStorageType(config.enabledStorageTypes);
-const currentBrowserLowerCase = detectBrowser();
 
 const PARAMS_NAMES = {
   abTestGroup: 'abGroup',
@@ -171,6 +170,7 @@ function bidWon(args, isReportExternal) {
 
   if (isNaN(iiqAnalyticsAnalyticsAdapter.initOptions.partner) || iiqAnalyticsAnalyticsAdapter.initOptions.partner == -1) return;
 
+  const currentBrowserLowerCase = detectBrowser();
   if (iiqAnalyticsAnalyticsAdapter.initOptions.browserBlackList?.includes(currentBrowserLowerCase)) {
     logError('IIQ ANALYTICS -> Browser is in blacklist!');
     return;
@@ -343,6 +343,7 @@ function getDefaultDataObject() {
 function constructFullUrl(data) {
   let report = [];
   const reportMethod = iiqAnalyticsAnalyticsAdapter.initOptions.reportMethod;
+  const currentBrowserLowerCase = detectBrowser();
   data = btoa(JSON.stringify(data));
   report.push(data);
 
