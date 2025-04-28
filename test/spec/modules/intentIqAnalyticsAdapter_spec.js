@@ -446,6 +446,43 @@ describe('IntentIQ tests all', function () {
     expect(request.url).to.contain(REPORT_ENDPOINT + '?pid=' + partner + '&mct=1');
   });
 
+  it('should send additionalParams in report if valid and small enough', function () {
+    const userConfig = getUserConfig();
+    userConfig[0].params.additionalParams = [{
+      parameterName: 'general',
+      parameterValue: 'Lee',
+      destination: [0, 0, 1]
+    }];
+  
+    config.getConfig.restore();
+    sinon.stub(config, 'getConfig').withArgs('userSync.userIds').returns(userConfig);
+  
+    localStorage.setItem(FIRST_PARTY_KEY, defaultData);
+    events.emit(EVENTS.BID_WON, wonRequest);
+  
+    const request = server.requests[0];
+    expect(request.url).to.include('general=Lee');
+  });
+  
+  it('should not send additionalParams in report if value is too large', function () {
+    const longVal = 'x'.repeat(5000000);
+    const userConfig = getUserConfig();
+    userConfig[0].params.additionalParams = [{
+      parameterName: 'general',
+      parameterValue: longVal,
+      destination: [0, 0, 1]
+    }];
+  
+    config.getConfig.restore();
+    sinon.stub(config, 'getConfig').withArgs('userSync.userIds').returns(userConfig);
+  
+    localStorage.setItem(FIRST_PARTY_KEY, defaultData);
+    events.emit(EVENTS.BID_WON, wonRequest);
+  
+    const request = server.requests[0];
+    expect(request.url).not.to.include('general');
+  });  
+
   const testCasesVrref = [
     {
       description: 'domainName matches window.top.location.href',

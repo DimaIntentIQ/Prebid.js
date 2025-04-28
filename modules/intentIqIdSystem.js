@@ -5,7 +5,7 @@
  * @requires module:modules/userId
  */
 
-import {logError, isPlainObject, isStr, isNumber} from '../src/utils.js';
+import {logError, isPlainObject, isStr, isNumber, getWinDimensions} from '../src/utils.js';
 import {ajax} from '../src/ajax.js';
 import {submodule} from '../src/hook.js'
 import AES from 'crypto-js/aes.js';
@@ -51,6 +51,7 @@ let sourceMetaData;
 let sourceMetaDataExternal;
 
 let FIRST_PARTY_KEY_FINAL = FIRST_PARTY_KEY;
+let FIRST_PARTY_DATA_KEY;
 let callCount = 0;
 let failCount = 0;
 let noDataCount = 0;
@@ -91,12 +92,13 @@ export function decryptData(encryptedText) {
 }
 
 function collectDeviceInfo() {
+  const windowDimensions = getWinDimensions();
   return {
-    windowInnerHeight: window.innerHeight,
-    windowInnerWidth: window.innerWidth,
-    devicePixelRatio: window.devicePixelRatio,
-    windowScreenHeight: window.screen.height,
-    windowScreenWidth: window.screen.width,
+    windowInnerHeight: windowDimensions.innerHeight,
+    windowInnerWidth: windowDimensions.innerWidth,
+    devicePixelRatio: windowDimensions.devicePixelRatio,
+    windowScreenHeight: windowDimensions.screen.height,
+    windowScreenWidth: windowDimensions.screen.width,
     language: navigator.language
   }
 }
@@ -183,7 +185,7 @@ export function createPixelUrl(firstPartyData, clientHints, configParams, partne
   url = appendVrrefAndFui(url, configParams.domainName);
   url = appendCMPData(url, cmpData);
   url = addMetaData(url, sourceMetaDataExternal || sourceMetaData);
-  url = handleAdditionalParams(browser, url, 0, configParams);
+  url = handleAdditionalParams(browser, url, 0, configParams.additionalParams);
 
   return url;
 }
@@ -346,7 +348,7 @@ export const intentIqIdSubmodule = {
     let siloEnabled = typeof configParams.siloEnabled === 'boolean' ? configParams.siloEnabled : false;
     sourceMetaData = isStr(configParams.sourceMetaData) ? translateMetadata(configParams.sourceMetaData) : '';
     sourceMetaDataExternal = isNumber(configParams.sourceMetaDataExternal) ? configParams.sourceMetaDataExternal : undefined;
-    let additionalParams = configParams.additionalParams ? configParams.sourceMetaDataExternal : undefined;
+    let additionalParams = configParams.additionalParams ? configParams.additionalParams : undefined;
     FIRST_PARTY_DATA_KEY = `${FIRST_PARTY_KEY}_${configParams.partner}`;
 
     const allowedStorage = defineStorageType(config.enabledStorageTypes);
