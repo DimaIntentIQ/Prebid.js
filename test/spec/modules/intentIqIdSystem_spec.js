@@ -887,6 +887,90 @@ describe('IntentIQ tests', function () {
     expect(request.url).to.not.include('&fbp=');
   });
 
+  it('should send pcid and idtype in AT=20 if it provided in config', function () {
+    let partnerClientId = 'partnerClientId 123';
+    let partnerClientIdType = 0;
+    const configParams = { params: {...allConfigParams.params, browserBlackList: 'chrome', partnerClientId, partnerClientIdType} };
+
+    intentIqIdSubmodule.getId(configParams);
+    let request = server.requests[0];
+
+    expect(request.url).to.include('?at=20');
+    expect(request.url).to.include(`&pcid=${encodeURIComponent(partnerClientId)}`);
+    expect(request.url).to.include(`&idtype=${partnerClientIdType}`);
+  });
+
+  it('should NOT send pcid and idtype in AT=20 if partnerClientId is NOT a string', function () {
+    let partnerClientId = 123;
+    let partnerClientIdType = 0;
+    const configParams = { params: {...allConfigParams.params, browserBlackList: 'chrome', partnerClientId, partnerClientIdType} };
+
+    intentIqIdSubmodule.getId(configParams);
+    let request = server.requests[0];
+
+    expect(request.url).to.include('?at=20');
+    expect(request.url).not.to.include(`&pcid=`);
+    expect(request.url).not.to.include(`&idtype=`);
+  });
+
+  it('should NOT send pcid and idtype in AT=20 if partnerClientIdType is NOT a number', function () {
+    let partnerClientId = 'partnerClientId 123';
+    let partnerClientIdType = 'wrong';
+    const configParams = { params: {...allConfigParams.params, browserBlackList: 'chrome', partnerClientId, partnerClientIdType} };
+
+    intentIqIdSubmodule.getId(configParams);
+    let request = server.requests[0];
+
+    expect(request.url).to.include('?at=20');
+    expect(request.url).not.to.include(`&pcid=`);
+    expect(request.url).not.to.include(`&idtype=`);
+  });
+
+  it('should send partnerClientId and partnerClientIdType in AT=39 if it provided in config', function () {
+    let partnerClientId = 'partnerClientId 123';
+    let partnerClientIdType = 0;
+    let callBackSpy = sinon.spy();
+    const configParams = { params: {...allConfigParams.params, partnerClientId, partnerClientIdType} };
+    let submoduleCallback = intentIqIdSubmodule.getId(configParams).callback;
+    submoduleCallback(callBackSpy);
+
+    let request = server.requests[0];
+
+    expect(request.url).to.include('?at=39')
+    expect(request.url).to.include(`&pcid=${encodeURIComponent(partnerClientId)}`);
+    expect(request.url).to.include(`&idtype=${partnerClientIdType}`);
+  });
+
+  it('should NOT send partnerClientId and partnerClientIdType in AT=39 if partnerClientId is not a string', function () {
+    let partnerClientId = 123;
+    let partnerClientIdType = 0;
+    let callBackSpy = sinon.spy();
+    const configParams = { params: {...allConfigParams.params, partnerClientId, partnerClientIdType} };
+    let submoduleCallback = intentIqIdSubmodule.getId(configParams).callback;
+    submoduleCallback(callBackSpy);
+
+    let request = server.requests[0];
+
+    expect(request.url).to.include('?at=39')
+    expect(request.url).not.to.include(`&pcid=${partnerClientId}`);
+    expect(request.url).not.to.include(`&idtype=${partnerClientIdType}`);
+  });
+
+  it('should NOT send partnerClientId and partnerClientIdType in AT=39 if partnerClientIdType is not a number', function () {
+    let partnerClientId = 'partnerClientId-123';
+    let partnerClientIdType = 'wrong';
+    let callBackSpy = sinon.spy();
+    const configParams = { params: {...allConfigParams.params, partnerClientId, partnerClientIdType} };
+    let submoduleCallback = intentIqIdSubmodule.getId(configParams).callback;
+    submoduleCallback(callBackSpy);
+
+    let request = server.requests[0];
+
+    expect(request.url).to.include('?at=39')
+    expect(request.url).not.to.include(`&pcid=${partnerClientId}`);
+    expect(request.url).not.to.include(`&idtype=${partnerClientIdType}`);
+  });
+
   it('should NOT send sourceMetaData in AT=20 if sourceMetaDataExternal provided', function () {
     const configParams = { params: {...allConfigParams.params, browserBlackList: 'chrome', sourceMetaDataExternal: 123} };
 
