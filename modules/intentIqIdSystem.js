@@ -130,7 +130,7 @@ function appendFirstPartyData (url, firstPartyData, partnerData) {
 
 function verifyIdType(value) {
   if (value === 0 || value === 1 || value === 3 || value === 4) return value;
-  else return -1;
+  return -1;
 }
 
 function appendPartnersFirstParty (url, configParams) {
