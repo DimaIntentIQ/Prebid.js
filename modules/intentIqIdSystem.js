@@ -128,6 +128,23 @@ function appendFirstPartyData (url, firstPartyData, partnerData) {
   return url
 }
 
+function verifyIdType(value) {
+  if (value === 0 || value === 1 || value === 3 || value === 4) return value;
+  return -1;
+}
+
+function appendPartnersFirstParty (url, configParams) {
+  let partnerClientId = typeof configParams.partnerClientId === 'string' ? encodeURIComponent(configParams.partnerClientId) : '';
+  let partnerClientIdType = typeof configParams.partnerClientIdType === 'number' ? verifyIdType(configParams.partnerClientIdType) : -1;
+
+  if (partnerClientIdType === -1) return url;
+  if (partnerClientId !== '') {
+      url = url + '&pcid=' + partnerClientId;
+      url = url + '&idtype=' + partnerClientIdType;
+  }
+  return url;
+}
+
 function appendCMPData (url, cmpData) {
   url += cmpData.uspString ? '&us_privacy=' + encodeURIComponent(cmpData.uspString) : '';
   url += cmpData.gppString ? '&gpp=' + encodeURIComponent(cmpData.gppString) : '';
@@ -176,6 +193,7 @@ export function createPixelUrl(firstPartyData, clientHints, configParams, partne
   url += '/profiles_engine/ProfilesEngineServlet?at=20&mi=10&secure=1'
   url += '&dpi=' + configParams.partner;
   url = appendFirstPartyData(url, firstPartyData, partnerData);
+  url = appendPartnersFirstParty(url, configParams);
   url = addUniquenessToUrl(url);
   url += partnerData?.clientType ? '&idtype=' + partnerData.clientType : '';
   if (deviceInfo) url = appendDeviceInfoToUrl(url, deviceInfo)
@@ -471,9 +489,9 @@ export const intentIqIdSubmodule = {
 
     // use protocol relative urls for http or https
     let url = `${iiqServerAddress(configParams, gdprDetected)}/profiles_engine/ProfilesEngineServlet?at=39&mi=10&dpi=${configParams.partner}&pt=17&dpn=1`;
-    url += configParams.pcid ? '&pcid=' + encodeURIComponent(configParams.pcid) : '';
     url += configParams.pai ? '&pai=' + encodeURIComponent(configParams.pai) : '';
     url = appendFirstPartyData(url, firstPartyData, partnerData);
+    url = appendPartnersFirstParty(url, configParams);
     url += (partnerData.cttl) ? '&cttl=' + encodeURIComponent(partnerData.cttl) : '';
     url += (partnerData.rrtt) ? '&rrtt=' + encodeURIComponent(partnerData.rrtt) : '';
     url = appendCMPData(url, cmpData);
