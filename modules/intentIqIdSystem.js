@@ -19,7 +19,6 @@ import {
   FIRST_PARTY_KEY,
   WITH_IIQ, WITHOUT_IIQ,
   NOT_YET_DEFINED,
-  BLACK_LIST,
   CLIENT_HINTS_KEY,
   EMPTY,
   GVLID,
@@ -346,7 +345,7 @@ export const intentIqIdSubmodule = {
         callbackFired = true;
         if (callbackTimeoutID) clearTimeout(callbackTimeoutID);
         if (isGroupB) runtimeEids = { eids: [] };
-        configParams.callback(runtimeEids, firstPartyData?.group || NOT_YET_DEFINED);
+        configParams.callback(runtimeEids);
       }
     }
 
@@ -362,6 +361,7 @@ export const intentIqIdSubmodule = {
 
     let gamObjectReference = isPlainObject(configParams.gamObjectReference) ? configParams.gamObjectReference : undefined;
     let gamParameterName = configParams.gamParameterName ? configParams.gamParameterName : 'intent_iq_group';
+    let groupChanged = typeof configParams.groupChanged === 'function' ? configParams.groupChanged : undefined;
     let siloEnabled = typeof configParams.siloEnabled === 'boolean' ? configParams.siloEnabled : false;
     sourceMetaData = isStr(configParams.sourceMetaData) ? translateMetadata(configParams.sourceMetaData) : '';
     sourceMetaDataExternal = isNumber(configParams.sourceMetaDataExternal) ? configParams.sourceMetaDataExternal : undefined;
@@ -377,7 +377,9 @@ export const intentIqIdSubmodule = {
     const gdprDetected = cmpData.gdprString;
     firstPartyData = tryParse(readData(FIRST_PARTY_KEY_FINAL, allowedStorage));
     const isGroupB = firstPartyData?.group === WITHOUT_IIQ;
-    setGamReporting(gamObjectReference, gamParameterName, firstPartyData?.group)
+    setGamReporting(gamObjectReference, gamParameterName, firstPartyData?.group);
+
+    if (groupChanged) groupChanged(firstPartyData?.group || NOT_YET_DEFINED);
 
     callbackTimeoutID = setTimeout(() => {
       firePartnerCallback();
@@ -474,7 +476,7 @@ export const intentIqIdSubmodule = {
     // Check if current browser is in blacklist
     if (browserBlackList?.includes(currentBrowserLowerCase)) {
       logError('User ID - intentIqId submodule: browser is in blacklist! Data will be not provided.');
-      if (configParams.callback) configParams.callback('', BLACK_LIST);
+      if (configParams.callback) configParams.callback('');
       const url = createPixelUrl(firstPartyData, clientHints, configParams, partnerData, cmpData)
       sendSyncRequest(allowedStorage, url, configParams.partner, firstPartyData, newUser)
       return
@@ -537,12 +539,14 @@ export const intentIqIdSubmodule = {
               if (respJson.tc == 41) {
                 firstPartyData.group = WITHOUT_IIQ;
                 storeData(FIRST_PARTY_KEY_FINAL, JSON.stringify(firstPartyData), allowedStorage, firstPartyData);
+                if (groupChanged) groupChanged(firstPartyData.group);
                 defineEmptyDataAndFireCallback();
                 if (gamObjectReference) setGamReporting(gamObjectReference, gamParameterName, firstPartyData.group);
                 return
               } else {
                 firstPartyData.group = WITH_IIQ;
                 if (gamObjectReference) setGamReporting(gamObjectReference, gamParameterName, firstPartyData.group);
+                if (groupChanged) groupChanged(firstPartyData.group);
               }
             }
             if ('isOptedOut' in respJson) {

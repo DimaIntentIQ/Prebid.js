@@ -12,7 +12,7 @@ import {storage, readData} from '../../../libraries/intentIqUtils/storageUtils.j
 import { gppDataHandler, uspDataHandler, gdprDataHandler } from '../../../src/consentHandler';
 import { clearAllCookies } from '../../helpers/cookies';
 import { detectBrowserFromUserAgent, detectBrowserFromUserAgentData } from '../../../libraries/intentIqUtils/detectBrowserUtils';
-import {CLIENT_HINTS_KEY, FIRST_PARTY_KEY, NOT_YET_DEFINED, WITH_IIQ, PREBID} from '../../../libraries/intentIqConstants/intentIqConstants.js';
+import {CLIENT_HINTS_KEY, FIRST_PARTY_KEY, NOT_YET_DEFINED, WITH_IIQ, WITHOUT_IIQ} from '../../../libraries/intentIqConstants/intentIqConstants.js';
 
 const partner = 10;
 const pai = '11';
@@ -1059,4 +1059,60 @@ describe('IntentIQ tests', function () {
     const updatedData = JSON.parse(localStorage.getItem(firstPartyDataKey));
     expect(updatedData.noDataCounter).to.equal(1);
   });
+
+  it('should call groupChanged with "withoutIIQ" when terminationCause is 41', function () {
+    const groupChangedSpy = sinon.spy();
+    const callBackSpy = sinon.spy();
+    const configParams = {
+      params: {
+        ...defaultConfigParams.params,
+        groupChanged: groupChangedSpy
+      }
+    };
+  
+    const submoduleCallback = intentIqIdSubmodule.getId(configParams).callback;
+    submoduleCallback(callBackSpy);
+  
+    const request = server.requests[0];
+    request.respond(
+      200,
+      responseHeader,
+      JSON.stringify({
+        tc: 41,
+        isOptedOut: false,
+        data: { eids: [] }
+      })
+    );
+  
+    expect(callBackSpy.calledOnce).to.be.true;
+    expect(groupChangedSpy.calledWith(WITHOUT_IIQ)).to.be.true;
+  });
+
+  it('should call groupChanged with "withIIQ" when terminationCause is NOT 41', function () {
+    const groupChangedSpy = sinon.spy();
+    const callBackSpy = sinon.spy();
+    const configParams = {
+      params: {
+        ...defaultConfigParams.params,
+        groupChanged: groupChangedSpy
+      }
+    };
+  
+    const submoduleCallback = intentIqIdSubmodule.getId(configParams).callback;
+    submoduleCallback(callBackSpy);
+  
+    const request = server.requests[0];
+    request.respond(
+      200,
+      responseHeader,
+      JSON.stringify({
+        tc: 35,
+        isOptedOut: false,
+        data: { eids: [] }
+      })
+    );
+  
+    expect(callBackSpy.calledOnce).to.be.true;
+    expect(groupChangedSpy.calledWith(WITH_IIQ)).to.be.true;
+  });  
 });
