@@ -26,6 +26,7 @@ import {
 } from '../libraries/intentIqConstants/intentIqConstants.js';
 import {SYNC_KEY} from '../libraries/intentIqUtils/getSyncKey.js';
 import {iiqPixelServerAddress, iiqServerAddress} from '../libraries/intentIqUtils/intentIqConfig.js';
+import { handleAdditionalParams } from '../libraries/intentIqUtils/handleAdditionalParams.js';
 
 /**
  * @typedef {import('../modules/userId/index.js').Submodule} Submodule
@@ -186,21 +187,23 @@ function addMetaData(url, data) {
 }
 
 export function createPixelUrl(firstPartyData, clientHints, configParams, partnerData, cmpData) {
-  const deviceInfo = collectDeviceInfo()
+  const deviceInfo = collectDeviceInfo();
+  const browser = detectBrowser();
 
   let url = iiqPixelServerAddress(configParams, cmpData.gdprString);
-  url += '/profiles_engine/ProfilesEngineServlet?at=20&mi=10&secure=1'
+  url += '/profiles_engine/ProfilesEngineServlet?at=20&mi=10&secure=1';
   url += '&dpi=' + configParams.partner;
   url = appendFirstPartyData(url, firstPartyData, partnerData);
   url = appendPartnersFirstParty(url, configParams);
   url = addUniquenessToUrl(url);
   url += partnerData?.clientType ? '&idtype=' + partnerData.clientType : '';
-  if (deviceInfo) url = appendDeviceInfoToUrl(url, deviceInfo)
+  if (deviceInfo) url = appendDeviceInfoToUrl(url, deviceInfo);
   url += VERSION ? '&jsver=' + VERSION : '';
   if (clientHints) url += '&uh=' + encodeURIComponent(clientHints);
   url = appendVrrefAndFui(url, configParams.domainName);
   url = appendCMPData(url, cmpData);
   url = addMetaData(url, sourceMetaDataExternal || sourceMetaData);
+  url = handleAdditionalParams(browser, url, 0, configParams.additionalParams);
   url = appendSPData(url, firstPartyData)
   url += '&source=' + PREBID;
   return url;
@@ -365,6 +368,7 @@ export const intentIqIdSubmodule = {
     let siloEnabled = typeof configParams.siloEnabled === 'boolean' ? configParams.siloEnabled : false;
     sourceMetaData = isStr(configParams.sourceMetaData) ? translateMetadata(configParams.sourceMetaData) : '';
     sourceMetaDataExternal = isNumber(configParams.sourceMetaDataExternal) ? configParams.sourceMetaDataExternal : undefined;
+    let additionalParams = configParams.additionalParams ? configParams.additionalParams : undefined;
     FIRST_PARTY_DATA_KEY = `${FIRST_PARTY_KEY}_${configParams.partner}`;
 
     const allowedStorage = defineStorageType(config.enabledStorageTypes);
@@ -503,6 +507,7 @@ export const intentIqIdSubmodule = {
     url += VERSION ? '&jsver=' + VERSION : '';
     url += firstPartyData?.group ? '&testGroup=' + encodeURIComponent(firstPartyData.group) : '';
     url = addMetaData(url, sourceMetaDataExternal || sourceMetaData);
+    url = handleAdditionalParams(currentBrowserLowerCase, url, 1, additionalParams);
     url = appendSPData(url, firstPartyData)
     url += '&source=' + PREBID;
 

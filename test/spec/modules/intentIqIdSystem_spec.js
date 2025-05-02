@@ -1060,6 +1060,85 @@ describe('IntentIQ tests', function () {
     expect(updatedData.noDataCounter).to.equal(1);
   });
 
+  it('should send additional parameters in sync request due to configuration', function () {
+    const configParams = {
+      params: {
+        ...defaultConfigParams.params,
+        browserBlackList: 'chrome',
+        additionalParams: [{
+          parameterName: 'general',
+          parameterValue: 'Lee',
+          destination: [1, 0, 0]
+        }]
+      }
+    };
+  
+    intentIqIdSubmodule.getId(configParams);
+    const syncRequest = server.requests[0];
+  
+    expect(syncRequest.url).to.include('general=Lee');
+  });
+  it('should send additionalParams in VR request', function () {
+    const configParams = {
+      params: {
+        ...defaultConfigParams.params,
+        additionalParams: [{
+          parameterName: 'general',
+          parameterValue: 'Lee',
+          destination: [0, 1, 0]
+        }]
+      }
+    };
+
+    let callBackSpy = sinon.spy();
+    let submoduleCallback = intentIqIdSubmodule.getId(configParams).callback;
+    submoduleCallback(callBackSpy);
+    const vrRequest = server.requests[0];
+  
+    expect(vrRequest.url).to.include('general=Lee');
+  });
+  
+  it('should not send additionalParams in case it is not an array', function () {
+    const configParams = {
+      params: {
+        ...defaultConfigParams.params,
+        additionalParams: {
+          parameterName: 'general',
+          parameterValue: 'Lee',
+          destination: [0, 1, 0]
+        }
+      }
+    };
+
+    let callBackSpy = sinon.spy();
+    let submoduleCallback = intentIqIdSubmodule.getId(configParams).callback;
+    submoduleCallback(callBackSpy);
+    const vrRequest = server.requests[0];
+  
+    expect(vrRequest.url).not.to.include('general=');
+  });
+  
+  it('should not send additionalParams in case request url is too long', function () {
+    const longValue = 'x'.repeat(5000000); // simulate long parameter
+    const configParams = {
+      params: {
+        ...defaultConfigParams.params,
+        additionalParams: [{
+          parameterName: 'general',
+          parameterValue: longValue,
+          destination: [0, 1, 0]
+        }]
+      }
+    };
+
+    let callBackSpy = sinon.spy();
+    let submoduleCallback = intentIqIdSubmodule.getId(configParams).callback;
+    submoduleCallback(callBackSpy);
+    const vrRequest = server.requests[0];
+  
+    expect(vrRequest.url).not.to.include('general=');
+  });
+
   it('should call groupChanged with "withoutIIQ" when terminationCause is 41', function () {
     const groupChangedSpy = sinon.spy();
     const callBackSpy = sinon.spy();

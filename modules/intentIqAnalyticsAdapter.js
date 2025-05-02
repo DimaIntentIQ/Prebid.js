@@ -13,6 +13,7 @@ import {getCmpData} from '../libraries/intentIqUtils/getCmpData.js'
 import {CLIENT_HINTS_KEY, FIRST_PARTY_KEY, VERSION, PREBID} from '../libraries/intentIqConstants/intentIqConstants.js';
 import {readData, defineStorageType} from '../libraries/intentIqUtils/storageUtils.js';
 import {reportingServerAddress} from '../libraries/intentIqUtils/intentIqConfig.js';
+import { handleAdditionalParams } from '../libraries/intentIqUtils/handleAdditionalParams.js';
 
 const MODULE_NAME = 'iiqAnalytics'
 const analyticsType = 'endpoint';
@@ -85,7 +86,8 @@ let iiqAnalyticsAnalyticsAdapter = Object.assign(adapter({url: DEFAULT_URL, anal
     manualWinReportEnabled: false,
     domainName: null,
     siloEnabled: false,
-    reportMethod: null
+    reportMethod: null,
+    additionalParams: null
   },
   track({eventType, args}) {
     switch (eventType) {
@@ -123,6 +125,7 @@ function initAdapterConfig() {
     iiqAnalyticsAnalyticsAdapter.initOptions.siloEnabled =
       typeof iiqConfig.params?.siloEnabled === 'boolean' ? iiqConfig.params.siloEnabled : false;
     iiqAnalyticsAnalyticsAdapter.initOptions.reportMethod = parseReportingMethod(iiqConfig.params?.reportMethod);
+    iiqAnalyticsAnalyticsAdapter.initOptions.additionalParams = iiqConfig.params?.additionalParams || null;
   } else {
     iiqAnalyticsAnalyticsAdapter.initOptions.lsValueInitialized = false;
     iiqAnalyticsAnalyticsAdapter.initOptions.partner = -1;
@@ -341,6 +344,7 @@ function getDefaultDataObject() {
 function constructFullUrl(data) {
   let report = [];
   const reportMethod = iiqAnalyticsAnalyticsAdapter.initOptions.reportMethod;
+  const currentBrowserLowerCase = detectBrowser();
   data = btoa(JSON.stringify(data));
   report.push(data);
 
@@ -367,6 +371,7 @@ function constructFullUrl(data) {
     return { url, method: 'POST', payload: JSON.stringify(report) };
   }
   url += '&payload=' + encodeURIComponent(JSON.stringify(report));
+  url = handleAdditionalParams(currentBrowserLowerCase, url, 2, iiqAnalyticsAnalyticsAdapter.initOptions.additionalParams);
   return { url, method: 'GET' };
 }
 

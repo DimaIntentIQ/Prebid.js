@@ -25,3 +25,13 @@ export const SCREEN_PARAMS = {
 
 export const SYNC_REFRESH_MILL = 3600000;
 export const META_DATA_CONSTANT = 256;
+
+export const MAX_REQUEST_LENGTH = {
+  // https://www.geeksforgeeks.org/maximum-length-of-a-url-in-different-browsers/
+  chrome: 2097152,
+  safari: 80000,
+  opera: 2097152,
+  edge: 2048,
+  firefox: 65536,
+  ie: 2048
+};
