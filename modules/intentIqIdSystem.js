@@ -11,6 +11,7 @@ import {submodule} from '../src/hook.js'
 import AES from 'crypto-js/aes.js';
 import Utf8 from 'crypto-js/enc-utf8.js';
 import {detectBrowser} from '../libraries/intentIqUtils/detectBrowserUtils.js';
+import {appendSPData} from '../libraries/intentIqUtils/urlUtils.js';
 import {appendVrrefAndFui} from '../libraries/intentIqUtils/getRefferer.js';
 import { getCmpData } from '../libraries/intentIqUtils/getCmpData.js';
 import {readData, storeData, defineStorageType, removeDataByKey} from '../libraries/intentIqUtils/storageUtils.js';
@@ -18,11 +19,10 @@ import {
   FIRST_PARTY_KEY,
   WITH_IIQ, WITHOUT_IIQ,
   NOT_YET_DEFINED,
-  BLACK_LIST,
   CLIENT_HINTS_KEY,
   EMPTY,
   GVLID,
-  VERSION, INVALID_ID, SCREEN_PARAMS, SYNC_REFRESH_MILL, META_DATA_CONSTANT
+  VERSION, INVALID_ID, SCREEN_PARAMS, SYNC_REFRESH_MILL, META_DATA_CONSTANT, PREBID
 } from '../libraries/intentIqConstants/intentIqConstants.js';
 import {SYNC_KEY} from '../libraries/intentIqUtils/getSyncKey.js';
 import {iiqPixelServerAddress, iiqServerAddress} from '../libraries/intentIqUtils/intentIqConfig.js';
@@ -128,6 +128,23 @@ function appendFirstPartyData (url, firstPartyData, partnerData) {
   return url
 }
 
+function verifyIdType(value) {
+  if (value === 0 || value === 1 || value === 3 || value === 4) return value;
+  return -1;
+}
+
+function appendPartnersFirstParty (url, configParams) {
+  let partnerClientId = typeof configParams.partnerClientId === 'string' ? encodeURIComponent(configParams.partnerClientId) : '';
+  let partnerClientIdType = typeof configParams.partnerClientIdType === 'number' ? verifyIdType(configParams.partnerClientIdType) : -1;
+
+  if (partnerClientIdType === -1) return url;
+  if (partnerClientId !== '') {
+      url = url + '&pcid=' + partnerClientId;
+      url = url + '&idtype=' + partnerClientIdType;
+  }
+  return url;
+}
+
 function appendCMPData (url, cmpData) {
   url += cmpData.uspString ? '&us_privacy=' + encodeURIComponent(cmpData.uspString) : '';
   url += cmpData.gppString ? '&gpp=' + encodeURIComponent(cmpData.gppString) : '';
@@ -177,6 +194,7 @@ export function createPixelUrl(firstPartyData, clientHints, configParams, partne
   url += '/profiles_engine/ProfilesEngineServlet?at=20&mi=10&secure=1';
   url += '&dpi=' + configParams.partner;
   url = appendFirstPartyData(url, firstPartyData, partnerData);
+  url = appendPartnersFirstParty(url, configParams);
   url = addUniquenessToUrl(url);
   url += partnerData?.clientType ? '&idtype=' + partnerData.clientType : '';
   if (deviceInfo) url = appendDeviceInfoToUrl(url, deviceInfo);
@@ -186,7 +204,8 @@ export function createPixelUrl(firstPartyData, clientHints, configParams, partne
   url = appendCMPData(url, cmpData);
   url = addMetaData(url, sourceMetaDataExternal || sourceMetaData);
   url = handleAdditionalParams(browser, url, 0, configParams.additionalParams);
-
+  url = appendSPData(url, firstPartyData)
+  url += '&source=' + PREBID;
   return url;
 }
 
@@ -329,7 +348,7 @@ export const intentIqIdSubmodule = {
         callbackFired = true;
         if (callbackTimeoutID) clearTimeout(callbackTimeoutID);
         if (isGroupB) runtimeEids = { eids: [] };
-        configParams.callback(runtimeEids, firstPartyData?.group || NOT_YET_DEFINED);
+        configParams.callback(runtimeEids);
       }
     }
 
@@ -345,6 +364,7 @@ export const intentIqIdSubmodule = {
 
     let gamObjectReference = isPlainObject(configParams.gamObjectReference) ? configParams.gamObjectReference : undefined;
     let gamParameterName = configParams.gamParameterName ? configParams.gamParameterName : 'intent_iq_group';
+    let groupChanged = typeof configParams.groupChanged === 'function' ? configParams.groupChanged : undefined;
     let siloEnabled = typeof configParams.siloEnabled === 'boolean' ? configParams.siloEnabled : false;
     sourceMetaData = isStr(configParams.sourceMetaData) ? translateMetadata(configParams.sourceMetaData) : '';
     sourceMetaDataExternal = isNumber(configParams.sourceMetaDataExternal) ? configParams.sourceMetaDataExternal : undefined;
@@ -361,7 +381,9 @@ export const intentIqIdSubmodule = {
     const gdprDetected = cmpData.gdprString;
     firstPartyData = tryParse(readData(FIRST_PARTY_KEY_FINAL, allowedStorage));
     const isGroupB = firstPartyData?.group === WITHOUT_IIQ;
-    setGamReporting(gamObjectReference, gamParameterName, firstPartyData?.group)
+    setGamReporting(gamObjectReference, gamParameterName, firstPartyData?.group);
+
+    if (groupChanged) groupChanged(firstPartyData?.group || NOT_YET_DEFINED);
 
     callbackTimeoutID = setTimeout(() => {
       firePartnerCallback();
@@ -458,7 +480,7 @@ export const intentIqIdSubmodule = {
     // Check if current browser is in blacklist
     if (browserBlackList?.includes(currentBrowserLowerCase)) {
       logError('User ID - intentIqId submodule: browser is in blacklist! Data will be not provided.');
-      if (configParams.callback) configParams.callback('', BLACK_LIST);
+      if (configParams.callback) configParams.callback('');
       const url = createPixelUrl(firstPartyData, clientHints, configParams, partnerData, cmpData)
       sendSyncRequest(allowedStorage, url, configParams.partner, firstPartyData, newUser)
       return
@@ -473,19 +495,21 @@ export const intentIqIdSubmodule = {
 
     // use protocol relative urls for http or https
     let url = `${iiqServerAddress(configParams, gdprDetected)}/profiles_engine/ProfilesEngineServlet?at=39&mi=10&dpi=${configParams.partner}&pt=17&dpn=1`;
-    url += configParams.pcid ? '&pcid=' + encodeURIComponent(configParams.pcid) : '';
     url += configParams.pai ? '&pai=' + encodeURIComponent(configParams.pai) : '';
     url = appendFirstPartyData(url, firstPartyData, partnerData);
+    url = appendPartnersFirstParty(url, configParams);
     url += (partnerData.cttl) ? '&cttl=' + encodeURIComponent(partnerData.cttl) : '';
     url += (partnerData.rrtt) ? '&rrtt=' + encodeURIComponent(partnerData.rrtt) : '';
     url = appendCMPData(url, cmpData);
     url += '&japs=' + encodeURIComponent(configParams.siloEnabled === true);
-    url += appendCounters(url);
+    url = appendCounters(url);
     url += clientHints ? '&uh=' + encodeURIComponent(clientHints) : '';
     url += VERSION ? '&jsver=' + VERSION : '';
     url += firstPartyData?.group ? '&testGroup=' + encodeURIComponent(firstPartyData.group) : '';
     url = addMetaData(url, sourceMetaDataExternal || sourceMetaData);
     url = handleAdditionalParams(currentBrowserLowerCase, url, 1, additionalParams);
+    url = appendSPData(url, firstPartyData)
+    url += '&source=' + PREBID;
 
     // Add vrref and fui to the URL
     url = appendVrrefAndFui(url, configParams.domainName);
@@ -520,12 +544,14 @@ export const intentIqIdSubmodule = {
               if (respJson.tc == 41) {
                 firstPartyData.group = WITHOUT_IIQ;
                 storeData(FIRST_PARTY_KEY_FINAL, JSON.stringify(firstPartyData), allowedStorage, firstPartyData);
+                if (groupChanged) groupChanged(firstPartyData.group);
                 defineEmptyDataAndFireCallback();
                 if (gamObjectReference) setGamReporting(gamObjectReference, gamParameterName, firstPartyData.group);
                 return
               } else {
                 firstPartyData.group = WITH_IIQ;
                 if (gamObjectReference) setGamReporting(gamObjectReference, gamParameterName, firstPartyData.group);
+                if (groupChanged) groupChanged(firstPartyData.group);
               }
             }
             if ('isOptedOut' in respJson) {
@@ -574,6 +600,11 @@ export const intentIqIdSubmodule = {
 
             if ('sid' in respJson) {
               partnerData.siteId = respJson.sid;
+            }
+
+            if ('spd' in respJson) {
+              // server provided data
+              firstPartyData.spd = respJson.spd;
             }
 
             if (rrttStrtTime && rrttStrtTime > 0) {

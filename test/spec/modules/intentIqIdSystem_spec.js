@@ -12,7 +12,7 @@ import {storage, readData} from '../../../libraries/intentIqUtils/storageUtils.j
 import { gppDataHandler, uspDataHandler, gdprDataHandler } from '../../../src/consentHandler';
 import { clearAllCookies } from '../../helpers/cookies';
 import { detectBrowserFromUserAgent, detectBrowserFromUserAgentData } from '../../../libraries/intentIqUtils/detectBrowserUtils';
-import {CLIENT_HINTS_KEY, FIRST_PARTY_KEY, NOT_YET_DEFINED, WITH_IIQ} from '../../../libraries/intentIqConstants/intentIqConstants.js';
+import {CLIENT_HINTS_KEY, FIRST_PARTY_KEY, NOT_YET_DEFINED, WITH_IIQ, WITHOUT_IIQ} from '../../../libraries/intentIqConstants/intentIqConstants.js';
 
 const partner = 10;
 const pai = '11';
@@ -182,6 +182,29 @@ describe('IntentIQ tests', function () {
     expect(intentIqIdSubmodule.decode('INVALID_ID')).to.equal(undefined);
     expect(intentIqIdSubmodule.decode('')).to.equal(undefined);
     expect(intentIqIdSubmodule.decode(undefined)).to.equal(undefined);
+  });
+
+  it('should send AT=20 request and send source in it', function () {
+    intentIqIdSubmodule.getId({params: {
+      partner: 10,
+      browserBlackList: 'chrome'
+      }
+    });
+
+    const at20request = server.requests[0];   
+    expect(at20request.url).to.contain(`&source=${PREBID}`);
+    expect(at20request.url).to.contain(`at=20`);
+  });
+
+
+  it('should send at=39 request and send source in it', function () {
+    const callBackSpy = sinon.spy();
+    const submoduleCallback = intentIqIdSubmodule.getId(defaultConfigParams).callback;
+  
+    submoduleCallback(callBackSpy);
+    const request = server.requests[0];
+  
+    expect(request.url).to.contain(`&source=${PREBID}`);
   });
 
   it('should call the IntentIQ endpoint with only partner, pai', function () {
@@ -394,6 +417,92 @@ describe('IntentIQ tests', function () {
     );
     expect(callBackSpy.calledOnce).to.be.true;
     expect(logErrorStub.called).to.be.true;
+  });
+
+  it('should send AT=20 request and send spd in it', function () {
+    const spdValue = { foo: 'bar', value: 42 };
+    const encodedSpd = encodeURIComponent(JSON.stringify(spdValue));
+    localStorage.setItem(FIRST_PARTY_KEY, JSON.stringify({pcid: '123', spd: spdValue}));
+
+    intentIqIdSubmodule.getId({params: {
+      partner: 10,
+      browserBlackList: 'chrome'
+      }
+    });
+    
+    const at20request = server.requests[0];
+    expect(at20request.url).to.contain(`&spd=${encodedSpd}`);
+    expect(at20request.url).to.contain(`at=20`);
+  });
+
+  it('should send AT=20 request and send spd string in it ', function () {
+    const spdValue = 'server provided data';
+    const encodedSpd = encodeURIComponent(spdValue);
+    localStorage.setItem(FIRST_PARTY_KEY, JSON.stringify({pcid: '123', spd: spdValue}));
+
+    intentIqIdSubmodule.getId({params: {
+      partner: 10,
+      browserBlackList: 'chrome'
+      }
+    });
+    
+    const at20request = server.requests[0];   
+    expect(at20request.url).to.contain(`&spd=${encodedSpd}`);
+    expect(at20request.url).to.contain(`at=20`);
+  });
+  
+  it('should send spd from firstPartyData in localStorage in at=39 request', function () {
+    const spdValue = { foo: 'bar', value: 42 };
+    const encodedSpd = encodeURIComponent(JSON.stringify(spdValue));
+
+    localStorage.setItem(FIRST_PARTY_KEY, JSON.stringify({ pcid: '123', spd: spdValue }));
+
+    const callBackSpy = sinon.spy();
+    const submoduleCallback = intentIqIdSubmodule.getId(defaultConfigParams).callback;
+  
+    submoduleCallback(callBackSpy);
+    const request = server.requests[0];
+    
+    expect(request.url).to.contain(`&spd=${encodedSpd}`);
+    expect(request.url).to.contain(`at=39`);
+  });
+
+  it('should send spd string from firstPartyData in localStorage in at=39 request', function () {
+    const spdValue = 'spd string';
+    const encodedSpd = encodeURIComponent(spdValue);
+    localStorage.setItem(FIRST_PARTY_KEY, JSON.stringify({ pcid: '123', spd: spdValue }));
+
+    const callBackSpy = sinon.spy();
+    const submoduleCallback = intentIqIdSubmodule.getId(defaultConfigParams).callback;
+  
+    submoduleCallback(callBackSpy);
+    const request = server.requests[0];
+
+    expect(request.url).to.contain(`&spd=${encodedSpd}`);
+    expect(request.url).to.contain(`at=39`);
+  });
+
+  it('should save spd to firstPartyData in localStorage if present in response', function () {
+    const spdValue = { foo: 'bar', value: 42 };
+    let callBackSpy = sinon.spy();
+    const submoduleCallback = intentIqIdSubmodule.getId(defaultConfigParams).callback;
+  
+    submoduleCallback(callBackSpy);
+    const request = server.requests[0];
+  
+    request.respond(
+      200,
+      responseHeader,
+      JSON.stringify({ pid: 'test_pid', data: 'test_personid', ls: true, spd: spdValue })
+    );
+  
+    const storedLs = readData(FIRST_PARTY_KEY, ['html5', 'cookie'], storage);
+    const parsedLs = JSON.parse(storedLs);
+    
+    expect(storedLs).to.not.be.null;
+    expect(callBackSpy.calledOnce).to.be.true;
+    expect(parsedLs).to.have.property('spd');
+    expect(parsedLs.spd).to.deep.equal(spdValue);
   });
 
   describe('detectBrowserFromUserAgent', function () {
@@ -778,6 +887,90 @@ describe('IntentIQ tests', function () {
     expect(request.url).to.not.include('&fbp=');
   });
 
+  it('should send pcid and idtype in AT=20 if it provided in config', function () {
+    let partnerClientId = 'partnerClientId 123';
+    let partnerClientIdType = 0;
+    const configParams = { params: {...allConfigParams.params, browserBlackList: 'chrome', partnerClientId, partnerClientIdType} };
+
+    intentIqIdSubmodule.getId(configParams);
+    let request = server.requests[0];
+
+    expect(request.url).to.include('?at=20');
+    expect(request.url).to.include(`&pcid=${encodeURIComponent(partnerClientId)}`);
+    expect(request.url).to.include(`&idtype=${partnerClientIdType}`);
+  });
+
+  it('should NOT send pcid and idtype in AT=20 if partnerClientId is NOT a string', function () {
+    let partnerClientId = 123;
+    let partnerClientIdType = 0;
+    const configParams = { params: {...allConfigParams.params, browserBlackList: 'chrome', partnerClientId, partnerClientIdType} };
+
+    intentIqIdSubmodule.getId(configParams);
+    let request = server.requests[0];
+
+    expect(request.url).to.include('?at=20');
+    expect(request.url).not.to.include(`&pcid=`);
+    expect(request.url).not.to.include(`&idtype=`);
+  });
+
+  it('should NOT send pcid and idtype in AT=20 if partnerClientIdType is NOT a number', function () {
+    let partnerClientId = 'partnerClientId 123';
+    let partnerClientIdType = 'wrong';
+    const configParams = { params: {...allConfigParams.params, browserBlackList: 'chrome', partnerClientId, partnerClientIdType} };
+
+    intentIqIdSubmodule.getId(configParams);
+    let request = server.requests[0];
+
+    expect(request.url).to.include('?at=20');
+    expect(request.url).not.to.include(`&pcid=`);
+    expect(request.url).not.to.include(`&idtype=`);
+  });
+
+  it('should send partnerClientId and partnerClientIdType in AT=39 if it provided in config', function () {
+    let partnerClientId = 'partnerClientId 123';
+    let partnerClientIdType = 0;
+    let callBackSpy = sinon.spy();
+    const configParams = { params: {...allConfigParams.params, partnerClientId, partnerClientIdType} };
+    let submoduleCallback = intentIqIdSubmodule.getId(configParams).callback;
+    submoduleCallback(callBackSpy);
+
+    let request = server.requests[0];
+
+    expect(request.url).to.include('?at=39')
+    expect(request.url).to.include(`&pcid=${encodeURIComponent(partnerClientId)}`);
+    expect(request.url).to.include(`&idtype=${partnerClientIdType}`);
+  });
+
+  it('should NOT send partnerClientId and partnerClientIdType in AT=39 if partnerClientId is not a string', function () {
+    let partnerClientId = 123;
+    let partnerClientIdType = 0;
+    let callBackSpy = sinon.spy();
+    const configParams = { params: {...allConfigParams.params, partnerClientId, partnerClientIdType} };
+    let submoduleCallback = intentIqIdSubmodule.getId(configParams).callback;
+    submoduleCallback(callBackSpy);
+
+    let request = server.requests[0];
+
+    expect(request.url).to.include('?at=39')
+    expect(request.url).not.to.include(`&pcid=${partnerClientId}`);
+    expect(request.url).not.to.include(`&idtype=${partnerClientIdType}`);
+  });
+
+  it('should NOT send partnerClientId and partnerClientIdType in AT=39 if partnerClientIdType is not a number', function () {
+    let partnerClientId = 'partnerClientId-123';
+    let partnerClientIdType = 'wrong';
+    let callBackSpy = sinon.spy();
+    const configParams = { params: {...allConfigParams.params, partnerClientId, partnerClientIdType} };
+    let submoduleCallback = intentIqIdSubmodule.getId(configParams).callback;
+    submoduleCallback(callBackSpy);
+
+    let request = server.requests[0];
+
+    expect(request.url).to.include('?at=39')
+    expect(request.url).not.to.include(`&pcid=${partnerClientId}`);
+    expect(request.url).not.to.include(`&idtype=${partnerClientIdType}`);
+  });
+
   it('should NOT send sourceMetaData in AT=20 if sourceMetaDataExternal provided', function () {
     const configParams = { params: {...allConfigParams.params, browserBlackList: 'chrome', sourceMetaDataExternal: 123} };
 
@@ -945,4 +1138,60 @@ describe('IntentIQ tests', function () {
   
     expect(vrRequest.url).not.to.include('general=');
   });
+
+  it('should call groupChanged with "withoutIIQ" when terminationCause is 41', function () {
+    const groupChangedSpy = sinon.spy();
+    const callBackSpy = sinon.spy();
+    const configParams = {
+      params: {
+        ...defaultConfigParams.params,
+        groupChanged: groupChangedSpy
+      }
+    };
+  
+    const submoduleCallback = intentIqIdSubmodule.getId(configParams).callback;
+    submoduleCallback(callBackSpy);
+  
+    const request = server.requests[0];
+    request.respond(
+      200,
+      responseHeader,
+      JSON.stringify({
+        tc: 41,
+        isOptedOut: false,
+        data: { eids: [] }
+      })
+    );
+  
+    expect(callBackSpy.calledOnce).to.be.true;
+    expect(groupChangedSpy.calledWith(WITHOUT_IIQ)).to.be.true;
+  });
+
+  it('should call groupChanged with "withIIQ" when terminationCause is NOT 41', function () {
+    const groupChangedSpy = sinon.spy();
+    const callBackSpy = sinon.spy();
+    const configParams = {
+      params: {
+        ...defaultConfigParams.params,
+        groupChanged: groupChangedSpy
+      }
+    };
+  
+    const submoduleCallback = intentIqIdSubmodule.getId(configParams).callback;
+    submoduleCallback(callBackSpy);
+  
+    const request = server.requests[0];
+    request.respond(
+      200,
+      responseHeader,
+      JSON.stringify({
+        tc: 35,
+        isOptedOut: false,
+        data: { eids: [] }
+      })
+    );
+  
+    expect(callBackSpy.calledOnce).to.be.true;
+    expect(groupChangedSpy.calledWith(WITH_IIQ)).to.be.true;
+  });  
 });

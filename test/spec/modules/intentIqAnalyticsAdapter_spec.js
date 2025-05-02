@@ -8,7 +8,7 @@ import * as events from 'src/events.js';
 import { getStorageManager } from 'src/storageManager.js';
 import sinon from 'sinon';
 import { REPORTER_ID, preparePayload } from '../../../modules/intentIqAnalyticsAdapter';
-import {FIRST_PARTY_KEY, VERSION} from '../../../libraries/intentIqConstants/intentIqConstants.js';
+import {FIRST_PARTY_KEY, PREBID, VERSION} from '../../../libraries/intentIqConstants/intentIqConstants.js';
 import * as detectBrowserUtils from '../../../libraries/intentIqUtils/detectBrowserUtils.js';
 import {getReferrer, appendVrrefAndFui} from '../../../libraries/intentIqUtils/getRefferer.js';
 import { gppDataHandler, uspDataHandler, gdprDataHandler } from '../../../src/consentHandler.js';
@@ -430,6 +430,16 @@ describe('IntentIQ tests all', function () {
     expect(request.url).to.contain(REPORT_SERVER_ADDRESS);
   });
 
+  it('should include source parameter in report URL', function () {
+    localStorage.setItem(FIRST_PARTY_KEY, JSON.stringify(defaultData));  
+    
+    events.emit(EVENTS.BID_WON, wonRequest);
+    const request = server.requests[0];
+
+    expect(server.requests.length).to.be.above(0);
+    expect(request.url).to.include(`&source=${PREBID}`);
+  });
+
   it('should use correct key if siloEnabled is true', function () {
     const siloEnabled = true;
     const USERID_CONFIG = [...getUserConfig()];
@@ -482,6 +492,35 @@ describe('IntentIQ tests all', function () {
     const request = server.requests[0];
     expect(request.url).not.to.include('general');
   });  
+  it('should include spd parameter from LS in report URL', function () {
+    const spdObject = { foo: 'bar', value: 42 };
+    const expectedSpdEncoded = encodeURIComponent(JSON.stringify(spdObject));
+
+    localStorage.setItem(FIRST_PARTY_KEY, JSON.stringify({...defaultData, spd: spdObject}));  
+    getWindowLocationStub = sinon.stub(utils, 'getWindowLocation').returns({ href: 'http://localhost:9876/' });
+
+    events.emit(EVENTS.BID_WON, wonRequest);
+
+    const request = server.requests[0];
+
+    expect(server.requests.length).to.be.above(0);
+    expect(request.url).to.include(`&spd=${expectedSpdEncoded}`);
+  });
+
+  it('should include spd parameter string from LS in report URL', function () {
+    const spdObject = 'server provided data';
+    const expectedSpdEncoded = encodeURIComponent(spdObject);
+
+    localStorage.setItem(FIRST_PARTY_KEY, JSON.stringify({...defaultData, spd: spdObject}));  
+    getWindowLocationStub = sinon.stub(utils, 'getWindowLocation').returns({ href: 'http://localhost:9876/' });
+
+    events.emit(EVENTS.BID_WON, wonRequest);
+
+    const request = server.requests[0];
+
+    expect(server.requests.length).to.be.above(0);
+    expect(request.url).to.include(`&spd=${expectedSpdEncoded}`);
+  });
 
   const testCasesVrref = [
     {
