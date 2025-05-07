@@ -48,7 +48,6 @@ const getUserConfigWithReportingServerAddress = () => [
       'unpack': null,
       'manualWinReportEnabled': false,
       'reportingServerAddress': REPORT_SERVER_ADDRESS
-
     },
     'storage': {
       'type': 'html5',
