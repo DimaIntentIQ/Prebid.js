@@ -22,7 +22,8 @@ import {
   CLIENT_HINTS_KEY,
   EMPTY,
   GVLID,
-  VERSION, INVALID_ID, SCREEN_PARAMS, SYNC_REFRESH_MILL, META_DATA_CONSTANT, PREBID
+  VERSION, INVALID_ID, SCREEN_PARAMS, SYNC_REFRESH_MILL, META_DATA_CONSTANT, PREBID,
+  HOURS_24
 } from '../libraries/intentIqConstants/intentIqConstants.js';
 import {SYNC_KEY} from '../libraries/intentIqUtils/getSyncKey.js';
 import {iiqPixelServerAddress, iiqServerAddress} from '../libraries/intentIqUtils/intentIqConfig.js';
@@ -51,7 +52,7 @@ let sourceMetaData;
 let sourceMetaDataExternal;
 
 let FIRST_PARTY_KEY_FINAL = FIRST_PARTY_KEY;
-let FIRST_PARTY_DATA_KEY;
+let PARTNER_DATA_KEY;
 let callCount = 0;
 let failCount = 0;
 let noDataCount = 0;
@@ -312,7 +313,7 @@ function storeCounters(storage, partnerData) {
   partnerData.callCount = callCount;
   partnerData.failCount = failCount;
   partnerData.noDataCounter = noDataCount;
-  storeData(FIRST_PARTY_DATA_KEY, JSON.stringify(partnerData), storage, firstPartyData);
+  storeData(PARTNER_DATA_KEY, JSON.stringify(partnerData), storage, firstPartyData);
 }
 
 
@@ -369,7 +370,7 @@ export const intentIqIdSubmodule = {
     sourceMetaData = isStr(configParams.sourceMetaData) ? translateMetadata(configParams.sourceMetaData) : '';
     sourceMetaDataExternal = isNumber(configParams.sourceMetaDataExternal) ? configParams.sourceMetaDataExternal : undefined;
     let additionalParams = configParams.additionalParams ? configParams.additionalParams : undefined;
-    FIRST_PARTY_DATA_KEY = `${FIRST_PARTY_KEY}_${configParams.partner}`;
+    PARTNER_DATA_KEY = `${FIRST_PARTY_KEY}_${configParams.partner}`;
 
     const allowedStorage = defineStorageType(config.enabledStorageTypes);
 
@@ -400,7 +401,6 @@ export const intentIqIdSubmodule = {
         pcid: firstPartyId,
         pcidDate: Date.now(),
         group: NOT_YET_DEFINED,
-        cttl: 0,
         uspString: EMPTY,
         gppString: EMPTY,
         gdprString: EMPTY,
@@ -440,7 +440,7 @@ export const intentIqIdSubmodule = {
         });
     }
 
-    const savedData = tryParse(readData(FIRST_PARTY_DATA_KEY, allowedStorage))
+    const savedData = tryParse(readData(PARTNER_DATA_KEY, allowedStorage))
     if (savedData) {
       partnerData = savedData;
 
@@ -450,7 +450,7 @@ export const intentIqIdSubmodule = {
 
       if (partnerData.wsrvcll) {
         partnerData.wsrvcll = false;
-        storeData(FIRST_PARTY_DATA_KEY, JSON.stringify(partnerData), allowedStorage, firstPartyData);
+        storeData(PARTNER_DATA_KEY, JSON.stringify(partnerData), allowedStorage, firstPartyData);
       }
     }
 
@@ -461,14 +461,24 @@ export const intentIqIdSubmodule = {
       }
     }
 
-    if (!firstPartyData.cttl || Date.now() - firstPartyData.date > firstPartyData.cttl || !isCMPStringTheSame(firstPartyData, cmpData)) {
+    if (!isCMPStringTheSame(firstPartyData, cmpData) ||
+          !firstPartyData.sCal ||
+          (savedData && (!partnerData.cttl || !partnerData.date || Date.now() - partnerData.date > partnerData.cttl))) {
       firstPartyData.uspString = cmpData.uspString;
       firstPartyData.gppString = cmpData.gppString;
       firstPartyData.gdprString = cmpData.gdprString;
       shouldCallServer = true;
       storeData(FIRST_PARTY_KEY_FINAL, JSON.stringify(firstPartyData), allowedStorage, firstPartyData);
-      storeData(FIRST_PARTY_DATA_KEY, JSON.stringify(partnerData), allowedStorage, firstPartyData);
-    } else if (firstPartyData.isOptedOut) {
+      storeData(PARTNER_DATA_KEY, JSON.stringify(partnerData), allowedStorage, firstPartyData);
+    }
+    if (!shouldCallServer) {
+      if (!savedData && !firstPartyData.isOptedOut) {
+        this.shouldCallServer = true;
+      }
+      this.shouldCallServer = Date.now() > this.firstPartyData.sCal + HOURS_24;
+    }
+
+    if (firstPartyData.isOptedOut) {
       partnerData.data = runtimeEids = { eids: [] };
       firePartnerCallback()
     }
@@ -517,7 +527,7 @@ export const intentIqIdSubmodule = {
     const storeFirstPartyData = () => {
       partnerData.eidl = runtimeEids?.eids?.length || -1
       storeData(FIRST_PARTY_KEY_FINAL, JSON.stringify(firstPartyData), allowedStorage, firstPartyData);
-      storeData(FIRST_PARTY_DATA_KEY, JSON.stringify(partnerData), allowedStorage, firstPartyData);
+      storeData(PARTNER_DATA_KEY, JSON.stringify(partnerData), allowedStorage, firstPartyData);
     }
 
     const resp = function (callback) {
@@ -527,7 +537,7 @@ export const intentIqIdSubmodule = {
           // If response is a valid json and should save is true
           if (respJson) {
             partnerData.date = Date.now();
-            firstPartyData.date = Date.now();
+            firstPartyData.sCal = Date.now();
             const defineEmptyDataAndFireCallback = () => {
               respJson.data = partnerData.data = runtimeEids = { eids: [] };
               storeFirstPartyData()
@@ -536,8 +546,8 @@ export const intentIqIdSubmodule = {
             }
             if (callbackTimeoutID) clearTimeout(callbackTimeoutID)
             if ('cttl' in respJson) {
-              firstPartyData.cttl = respJson.cttl;
-            } else firstPartyData.cttl = 86400000;
+              partnerData.cttl = respJson.cttl;
+            } else partnerData.cttl = HOURS_24;
 
             if ('tc' in respJson) {
               partnerData.terminationCause = respJson.tc;
@@ -562,7 +572,7 @@ export const intentIqIdSubmodule = {
                 respJson.data = partnerData.data = runtimeEids = { eids: [] };
 
                 const keysToRemove = [
-                  FIRST_PARTY_DATA_KEY,
+                  PARTNER_DATA_KEY,
                   CLIENT_HINTS_KEY
                 ];
 
@@ -638,7 +648,7 @@ export const intentIqIdSubmodule = {
       rrttStrtTime = Date.now();
 
       partnerData.wsrvcll = true;
-      storeData(FIRST_PARTY_DATA_KEY, JSON.stringify(partnerData), allowedStorage, firstPartyData);
+      storeData(PARTNER_DATA_KEY, JSON.stringify(partnerData), allowedStorage, firstPartyData);
       clearCountersAndStore(allowedStorage, partnerData);
       ajax(url, callbacks, undefined, {method: 'GET', withCredentials: true});
     };
