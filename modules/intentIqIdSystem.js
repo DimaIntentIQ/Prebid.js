@@ -586,6 +586,9 @@ export const intentIqIdSubmodule = {
             if ('pid' in respJson) {
               firstPartyData.pid = respJson.pid;
             }
+            if ('dbsaved' in respJson) {
+              firstPartyData.dbsaved = respJson.dbsaved;
+            }
             if ('ls' in respJson) {
               if (respJson.ls === false) {
                 defineEmptyDataAndFireCallback()
