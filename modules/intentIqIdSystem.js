@@ -474,8 +474,7 @@ export const intentIqIdSubmodule = {
     if (!shouldCallServer) {
       if (!savedData && !firstPartyData.isOptedOut) {
         this.shouldCallServer = true;
-      }
-      this.shouldCallServer = Date.now() > this.firstPartyData.sCal + HOURS_24;
+      } else this.shouldCallServer = Date.now() > this.firstPartyData.sCal + HOURS_24;
     }
 
     if (firstPartyData.isOptedOut) {
