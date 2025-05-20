@@ -14,7 +14,7 @@ import {detectBrowser} from '../libraries/intentIqUtils/detectBrowserUtils.js';
 import {appendSPData} from '../libraries/intentIqUtils/urlUtils.js';
 import {appendVrrefAndFui} from '../libraries/intentIqUtils/getRefferer.js';
 import { getCmpData } from '../libraries/intentIqUtils/getCmpData.js';
-import {readData, storeData, defineStorageType, removeDataByKey} from '../libraries/intentIqUtils/storageUtils.js';
+import {readData, storeData, defineStorageType, removeDataByKey, tryParse} from '../libraries/intentIqUtils/storageUtils.js';
 import {
   FIRST_PARTY_KEY,
   WITH_IIQ, WITHOUT_IIQ,
@@ -228,19 +228,6 @@ function sendSyncRequest(allowedStorage, url, partner, firstPartyData, newUser) 
     storeData(SYNC_KEY(partner), Date.now() + '', allowedStorage);
     ajax(url, () => {
     }, undefined, {method: 'GET', withCredentials: true});
-  }
-}
-
-/**
- * Parse json if possible, else return null
- * @param data
- */
-function tryParse(data) {
-  try {
-    return JSON.parse(data);
-  } catch (err) {
-    logError(err);
-    return null;
   }
 }
 
@@ -473,8 +460,8 @@ export const intentIqIdSubmodule = {
     }
     if (!shouldCallServer) {
       if (!savedData && !firstPartyData.isOptedOut) {
-        this.shouldCallServer = true;
-      } else this.shouldCallServer = Date.now() > this.firstPartyData.sCal + HOURS_24;
+        shouldCallServer = true;
+      } else shouldCallServer = Date.now() > firstPartyData.sCal + HOURS_24;
     }
 
     if (firstPartyData.isOptedOut) {
