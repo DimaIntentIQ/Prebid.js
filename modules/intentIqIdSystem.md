@@ -58,8 +58,7 @@ Please find below list of parameters that could be used in configuring Intent IQ
 | params.additionalParameters | Optional | Array | This parameter allows sending additional custom key-value parameters with specific destination logic (sync, VR, winreport). Each custom parameter is defined as an object in the array. | `[ { parameterName: “abc”, parameterValue: 123, destination: [1,1,0] } ]` |
 | params.additionalParameters [0].parameterName | Required | String | Name of the custom parameter. This will be sent as a query parameter. | `"abc"` |
 | params.additionalParameters [0].parameterValue | Required | String / Number | Value to assign to the parameter. | `123` |
-| params.additionalParameters [0].destination | Required | Array | Array of numbers either `1` or `0` . Controls where this parameter is sent `[sendWithSync, sendWithVr, winreport]`. | `[1, 0, 0]`
-
+| params.additionalParameters [0].destination | Required | Array | Array of numbers either `1` or `0`. Controls where this parameter is sent `[sendWithSync, sendWithVr, winreport]`. | `[1, 0, 0]` |
 
 ### Configuration example
 
@@ -74,15 +73,15 @@ pbjs.setConfig({
                 browserBlackList: "chrome",
                 callback: (data) => {...}, // your logic here
                 groupChanged: (group) => console.log('Group is', group),
-                manualWinReportEnabled: true,
+                manualWinReportEnabled: true, // Optional parameter
                 domainName: "currentDomain.com",
-                gamObjectReference: googletag,
-                gamParameterName: "intent_iq_group",
+                gamObjectReference: googletag, // Optional parameter
+                gamParameterName: "intent_iq_group", // Optional parameter
                 adUnitConfig: 1, // Extracting placementId strategy (adUnitCode or placementId order of priorities)
                 sourceMetaData: "123.123.123.123", // Optional parameter
                 sourceMetaDataExternal: 123456, // Optional parameter
                 reportMethod: "GET", // Optional parameter
-                additionalParameters: [
+                additionalParameters: [ // Optional parameter
                     {
                       parameterName: "abc",
                       parameterValue: 123,
