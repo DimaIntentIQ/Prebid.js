@@ -357,6 +357,30 @@ describe('IntentIQ tests', function () {
     expect(ppidSpy.firstCall.args[0]).to.equal('test_id');
   });
 
+  it('should call setPublisherProvidedId if shouldSetPPID=true and ids are present in LS', function () {
+    const ppidSpy = sinon.spy();
+    const gam = {
+      cmd: [],
+      pubads: function () {
+        return {
+          setTargeting: sinon.spy(),
+          setPublisherProvidedId: ppidSpy
+        };
+      }
+    };
+  
+    defaultConfigParams.params.gamObjectReference = gam;
+    defaultConfigParams.params.shouldSetPPID = true;
+  
+    localStorage.setItem('_iiq_fdata_' + partner, JSON.stringify(testLSValueWithData));
+
+    intentIqIdSubmodule.getId(defaultConfigParams);
+    gam.cmd.forEach(fn => typeof fn === 'function' && fn());
+  
+    const expectedEid = JSON.parse(decryptData(testLSValueWithData.data)).eids[0].uids[0].id;
+    expect(ppidSpy.calledOnce).to.be.true;
+    expect(ppidSpy.firstCall.args[0]).to.equal(expectedEid);
+  });
 
   it('should NOT call setPublisherProvidedId if shouldSetPPID=false', function () {
     const ppidSpy = sinon.spy();
@@ -390,7 +414,6 @@ describe('IntentIQ tests', function () {
     expect(ppidSpy.called).to.be.false;
   });
   
-
   it('should not throw Uncaught TypeError when IntentIQ endpoint returns empty response', function () {
     let callBackSpy = sinon.spy();
     let submoduleCallback = intentIqIdSubmodule.getId(defaultConfigParams).callback;
@@ -469,6 +492,7 @@ describe('IntentIQ tests', function () {
 
   it('return data stored in local storage ', function () {
     localStorage.setItem('_iiq_fdata_' + partner, JSON.stringify(testLSValueWithData));
+
     let returnedValue = intentIqIdSubmodule.getId(allConfigParams);
     expect(returnedValue.id).to.deep.equal(JSON.parse(decryptData(testLSValueWithData.data)).eids);
   });
