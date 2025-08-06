@@ -3,7 +3,6 @@ import * as utils from 'src/utils.js';
 import { server } from 'test/mocks/xhr.js';
 import {
   intentIqIdSubmodule,
-  decryptData,
   handleClientHints,
   firstPartyData as moduleFPD,
   isCMPStringTheSame, createPixelUrl, translateMetadata
@@ -13,6 +12,7 @@ import { gppDataHandler, uspDataHandler, gdprDataHandler } from '../../../src/co
 import { clearAllCookies } from '../../helpers/cookies.js';
 import { detectBrowser, detectBrowserFromUserAgent, detectBrowserFromUserAgentData } from '../../../libraries/intentIqUtils/detectBrowserUtils.js';
 import {CLIENT_HINTS_KEY, FIRST_PARTY_KEY, NOT_YET_DEFINED, PREBID, WITH_IIQ, WITHOUT_IIQ} from '../../../libraries/intentIqConstants/intentIqConstants.js';
+import { decryptData } from '../../../libraries/intentIqUtils/cryptionUtils.js';
 
 const partner = 10;
 const pai = '11';
