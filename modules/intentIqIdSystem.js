@@ -71,76 +71,22 @@ function generateGUID() {
   return guid;
 }
 
-// WebCrypto helpers
-const te = new TextEncoder();
-const td = new TextDecoder();
-const KEY_LEN_BITS = 256;
-const SALT_BYTES = 16;
-const IV_BYTES = 12;
-const PBKDF2_ITER = 100_000;
-
-function u8ToB64(u8) {
-  let s = '';
-  for (let i = 0; i < u8.length; i++) s += String.fromCharCode(u8[i]);
-  return btoa(s);
-}
-function b64ToU8(b64) {
-  const s = atob(b64);
-  const u8 = new Uint8Array(s.length);
-  for (let i = 0; i < s.length; i++) u8[i] = s.charCodeAt(i);
-  return u8;
+export function encryptData(str, key = 42) {
+  let out = '';
+  for (let i = 0; i < str.length; i++) {
+    out += (str.charCodeAt(i) ^ key) + '.';
+  }
+  const encrypted = out.slice(0, -1);
+  return encrypted;
 }
 
-async function deriveKey(passphraseBytes, salt) {
-  const baseKey = await crypto.subtle.importKey('raw', passphraseBytes, {name: 'PBKDF2'}, false, ['deriveKey']);
-  return crypto.subtle.deriveKey(
-    {name: 'PBKDF2', salt, iterations: PBKDF2_ITER, hash: 'SHA-256'},
-    baseKey,
-    {name: 'AES-GCM', length: KEY_LEN_BITS},
-    false,
-    ['encrypt', 'decrypt']
-  );
-}
-
-/**
- * Encrypts plaintext with AES-GCM.
- * Format (base64): [ver(1)][salt(16)][iv(12)][ciphertext(...)]
- * @returns {Promise<string>}
- */
-export async function encryptData(plainText) {
-  if (!crypto?.subtle) return btoa(plainText);
-  console.time('[wc] deriveKey+encrypt');
-  const salt = crypto.getRandomValues(new Uint8Array(SALT_BYTES));
-  const iv = crypto.getRandomValues(new Uint8Array(IV_BYTES));
-  const key = await deriveKey(te.encode(MODULE_NAME), salt);
-  const ctBuf = await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, key, te.encode(plainText));
-  const ct = new Uint8Array(ctBuf);
-  const out = new Uint8Array(1 + SALT_BYTES + IV_BYTES + ct.length);
-  out[0] = 2; // version tag
-  out.set(salt, 1);
-  out.set(iv, 1 + SALT_BYTES);
-  out.set(ct, 1 + SALT_BYTES + IV_BYTES);
-  console.timeEnd('[wc] deriveKey+encrypt');
-  return u8ToB64(out);
-}
-
-/**
- * Decrypts base64 produced by encryptData.
- * @returns {Promise<string>}
- */
-export async function decryptData(encryptedB64) {
-  if (!crypto?.subtle) return atob(encryptedB64);
-  const packed = b64ToU8(encryptedB64);
-  const ver = packed[0];
-  if (ver !== 2) throw new Error('Unsupported encrypted version'); // check version
-  console.time('[wc] deriveKey+decrypt');
-  const salt = packed.slice(1, 1 + SALT_BYTES);
-  const iv = packed.slice(1 + SALT_BYTES, 1 + SALT_BYTES + IV_BYTES);
-  const ct = packed.slice(1 + SALT_BYTES + IV_BYTES);
-  const key = await deriveKey(te.encode(MODULE_NAME), salt);
-  const ptBuf = await crypto.subtle.decrypt({ name: 'AES-GCM', iv }, key, ct);
-  console.timeEnd('[wc] deriveKey+decrypt');
-  return td.decode(ptBuf);
+export function decryptData(encoded, key = 42) {
+  const parts = encoded.split('.');
+  let out = '';
+  for (let i = 0; i < parts.length; i++) {
+    out += String.fromCharCode(parts[i] ^ key);
+  }
+  return out;
 }
 
 function collectDeviceInfo() {
@@ -491,13 +437,11 @@ export const intentIqIdSubmodule = {
       }
     }
 
-    if (partnerData.data && partnerData.data.length) {
-      decryptData(partnerData.data)
-        .then(text => {
-          decryptedData = tryParse(text);
-          if (decryptedData) runtimeEids = decryptedData;
-        })
-        .catch(err => logError('User ID - intentIqId submodule: failed to decrypt partner data.'))
+    if (partnerData.data) {
+      if (partnerData.data.length) { // encrypted data
+        decryptedData = tryParse(decryptData(partnerData.data));
+        runtimeEids = decryptedData;
+      }
     }
 
     if (!isCMPStringTheSame(firstPartyData, cmpData) ||
@@ -666,13 +610,8 @@ export const intentIqIdSubmodule = {
               runtimeEids = respJson.data
               callback(respJson.data.eids);
               firePartnerCallback()
-              encryptData(JSON.stringify(respJson.data))
-                .then(b64 => {
-                  partnerData.data = b64;
-                  updateCountersAndStore(runtimeEids, allowedStorage, partnerData);
-                  storeFirstPartyData();
-                })
-                .catch(() => logError('User ID - intentIqId submodule: failed to encrypt partner data.'))
+              const encryptedData = encryptData(JSON.stringify(respJson.data));
+              partnerData.data = encryptedData;
             } else {
               callback(runtimeEids);
               firePartnerCallback()
