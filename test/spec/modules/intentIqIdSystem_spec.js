@@ -87,7 +87,7 @@ describe('IntentIQ tests', function () {
     'date': Date.now(),
     'cttl': 9999999999999,
     'rrtt': 123,
-    'data': 'U2FsdGVkX185JJuQ2Zk0JLGjpgEbqxNy0Yl2qMtj9PqA5Q3IkNQYyTyFyTOkJi9Nf7E43PZQvIUgiUY/A9QxKYmy1LHX9LmZMKlLOcY1Je13Kr1EN7HRF8nIIWXo2jRgS5n0Nmty5995x3YMjLw+aRweoEtcrMC6p4wOdJnxfrOhdg0d/R7b8C+IN85rDLfNXANL1ezX8zwh4rj9XpMmWw=='
+    'data': '81.8.79.67.78.89.8.16.113.81.8.94.79.89.94.8.16.8.89.69.71.79.10.78.75.94.75.8.87.119.87'
   }
   const testResponseWithValues = {
     'abPercentage': 90,
