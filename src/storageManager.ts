@@ -39,10 +39,13 @@ export type StorageManager = {
 } & {
   [M in BrowserStorage as `${M}IsEnabled`]: AcceptsCallback<() => boolean>;
 } & {
+
   [M in BrowserStorage as `setDataIn${Capitalize<M>}`]: AcceptsCallback<typeof localStorage.setItem>;
 } & {
+
   [M in BrowserStorage as `getDataFrom${Capitalize<M>}`]: AcceptsCallback<typeof localStorage.getItem>;
 } & {
+
   [M in BrowserStorage as `removeDataFrom${Capitalize<M>}`]: AcceptsCallback<typeof localStorage.removeItem>
 } & {
   setCookie: AcceptsCallback<(name: string, value: string, expires?: string, sameSite?: string, domain?: string) => void>;
