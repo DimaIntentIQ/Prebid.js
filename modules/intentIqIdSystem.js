@@ -220,13 +220,19 @@ function sendSyncRequest(allowedStorage, url, partner, firstPartyData, newUser) 
  * @param {string} userGroup - The A/B testing group assigned to the user (e.g., 'A', 'B', or a custom value).
  */
 export function setGamReporting(gamObjectReference, gamParameterName, userGroup) {
-  if (isPlainObject(gamObjectReference) && gamObjectReference.cmd) {
-    gamObjectReference.cmd.push(() => {
-      gamObjectReference
-        .pubads()
-        .setTargeting(gamParameterName, userGroup || NOT_YET_DEFINED);
-    });
-  }
+  const canUseGam =
+    isPlainObject(gamObjectReference) &&
+    gamObjectReference.cmd &&
+    isStr(gamParameterName) &&
+    userGroup && userGroup !== NOT_YET_DEFINED;
+
+  if (!canUseGam) return;
+
+  gamObjectReference.cmd.push(() => {
+    gamObjectReference
+      .pubads()
+      .setTargeting(gamParameterName, userGroup);
+  });
 }
 
 /**
@@ -350,9 +356,6 @@ export const intentIqIdSubmodule = {
     const gdprDetected = cmpData.gdprString;
     firstPartyData = tryParse(readData(FIRST_PARTY_KEY_FINAL, allowedStorage));
     const isGroupB = firstPartyData?.group === WITHOUT_IIQ;
-    setGamReporting(gamObjectReference, gamParameterName, firstPartyData?.group);
-
-    if (groupChanged) groupChanged(firstPartyData?.group || NOT_YET_DEFINED);
 
     callbackTimeoutID = setTimeout(() => {
       firePartnerCallback();
@@ -493,6 +496,11 @@ export const intentIqIdSubmodule = {
         buildAndSendPixel('');
       }
       return;
+    }
+
+    if (firstPartyData?.group && firstPartyData.group !== NOT_YET_DEFINED && !isGroupB) {
+      setGamReporting(gamObjectReference, gamParameterName, firstPartyData.group);
+      if (groupChanged) groupChanged(firstPartyData.group);
     }
 
     if (!shouldCallServer) {
