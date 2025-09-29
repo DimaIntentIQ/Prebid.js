@@ -526,7 +526,7 @@ export const intentIqIdSubmodule = {
               partnerData.terminationCause = respJson.tc;
               if (Number(respJson.tc) === 41) {
                 firstPartyData.group = WITHOUT_IIQ;
-                storeData(FIRST_PARTY_KEY_FINAL, JSON.stringify(firstPartyData), allowedStorage, firstPartyData,);
+                storeData(FIRST_PARTY_KEY_FINAL, JSON.stringify(firstPartyData), allowedStorage, firstPartyData);
                 if (groupChanged) groupChanged(firstPartyData.group);
                 defineEmptyDataAndFireCallback();
                 if (gamObjectReference) setGamReporting(gamObjectReference, gamParameterName, firstPartyData.group);
