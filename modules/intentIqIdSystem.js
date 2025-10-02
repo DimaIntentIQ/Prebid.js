@@ -593,7 +593,7 @@ export const intentIqIdSubmodule = {
               firstPartyData.spd = respJson.spd;
             }
             if ('gpr' in respJson) {
-              partnerData.spd = respJson.spd;
+              partnerData.gpr = respJson.gpr;
             }
 
             if (rrttStrtTime && rrttStrtTime > 0) {
