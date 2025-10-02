@@ -19,7 +19,7 @@ import {
 import { readData, defineStorageType } from '../libraries/intentIqUtils/storageUtils.js';
 import { reportingServerAddress } from '../libraries/intentIqUtils/intentIqConfig.js';
 import { handleAdditionalParams } from '../libraries/intentIqUtils/handleAdditionalParams.js';
-import { gamPredictionReport } from '../libraries/intentIqUtils/gamPredictionreport.js';
+import { gamPredictionReport } from '../libraries/intentIqUtils/gamPredictionReport.js';
 
 const MODULE_NAME = 'iiqAnalytics';
 const analyticsType = 'endpoint';
