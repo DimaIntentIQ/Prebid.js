@@ -219,6 +219,10 @@ function shouldSendReport(isReportExternal) {
   );
 }
 
+export function restoreReportList() {
+  reportList = {};
+}
+
 function checkAndInitConfig() {
   if (!iiqAnalyticsAnalyticsAdapter.initOptions.lsValueInitialized) {
     initAdapterConfig();
@@ -324,7 +328,7 @@ export function preparePayload(data) {
       : { [result.prebidAuctionId]: 1 };
     cleanReportsID = setTimeout(() => {
       if (cleanReportsID) clearTimeout(cleanReportsID);
-      reportList = {};
+      restoreReportList();
     }, 1500); // clear object in 1.5 second after defining reporting list
   } else {
     logError('Duplication detected, report will be not sent');
