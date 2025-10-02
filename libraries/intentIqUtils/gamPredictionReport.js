@@ -1,7 +1,7 @@
 import { getEvents } from '../../src/events.js';
 import { logError } from '../../src/utils.js';
 
-export const gamPredictionReport = (gamObjectReference, sendData) => {
+export function gamPredictionReport (gamObjectReference, sendData) {
   try {
     if (!gamObjectReference || !sendData) logError('Failed to get gamPredictionReport, required data is missed');
     const getSlotTargeting = (slot) => {
