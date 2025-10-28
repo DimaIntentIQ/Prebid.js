@@ -1,9 +1,8 @@
----
-layout: analytics
-title: Intent IQ
-description: IntentIQ Analytics Adapter
-modulecode: intentIq
----
+# Overview
+
+Module Name: iiqAnalytics
+Module Type: Analytics Adapter
+Maintainer: julian@intentiq.com
 
 ### Description
 
