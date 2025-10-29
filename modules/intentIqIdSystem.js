@@ -316,7 +316,9 @@ export const intentIqIdSubmodule = {
         callbackFired = true;
         if (callbackTimeoutID) clearTimeout(callbackTimeoutID);
         if (isGroupB) runtimeEids = { eids: [] };
-        configParams.callback(runtimeEids);
+        let data = runtimeEids;
+        if (data?.eids?.length === 1 && typeof data.eids[0] === 'string') data = data.eids[0];
+        configParams.callback(data);
       }
     }
 
