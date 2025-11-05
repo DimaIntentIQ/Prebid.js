@@ -20,7 +20,6 @@ function pickABByPercentage(percentage) {
  * 2. Otherwise, assigns the group randomly based on AB_PERCENTAGE (default 95% for A, 5% for B).
  *
  * @param {number} [tc] The termination cause value returned by the server.
- * @param {number} [AB_PERCENTAGE=95] The probability (in %) of being assigned to Group A.
  * @returns {string} The determined group: WITH_IIQ (A) or WITHOUT_IIQ (B).
  */
 export function defineABTestingGroup(tc) {
