@@ -1,0 +1,31 @@
+import {WITH_IIQ, WITHOUT_IIQ, AB_PERCENTAGE } from '../intentIqConstants/intentIqConstants.js'
+
+/**
+ * Randomly assigns a user to group A or B based on the given percentage.
+ * Generates a random number (1–100) and compares it with the percentage.
+ *
+ * @param {number} percentage The percentage threshold (0–100).
+ * @returns {string} Returns WITH_IIQ for Group A or WITHOUT_IIQ for Group B.
+ */
+function pickABByPercentage(percentage) {
+  const roll = Math.floor(Math.random() * 100) + 1;
+  return roll <= percentage ? WITH_IIQ : WITHOUT_IIQ; // A : B
+}
+
+/**
+ * Determines the runtime A/B testing group without saving it to Local Storage.
+ * 1. If terminationCause (tc) exists:
+ *      - tc = 41 → Group B (WITHOUT_IIQ)
+ *      - any other value → Group A (WITH_IIQ)
+ * 2. Otherwise, assigns the group randomly based on AB_PERCENTAGE (default 95% for A, 5% for B).
+ *
+ * @param {number} [tc] The termination cause value returned by the server.
+ * @param {number} [AB_PERCENTAGE=95] The probability (in %) of being assigned to Group A.
+ * @returns {string} The determined group: WITH_IIQ (A) or WITHOUT_IIQ (B).
+ */
+export function defineABTestingGroup(tc) {
+  if (typeof tc === 'number' && Number.isFinite(tc)) {
+    return tc === 41 ? WITHOUT_IIQ : WITH_IIQ;
+  }
+  return pickABByPercentage(AB_PERCENTAGE);
+}
