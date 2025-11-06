@@ -322,7 +322,7 @@ export const intentIqIdSubmodule = {
     const cmpData = getCmpData();
     const gdprDetected = cmpData.gdprString;
     firstPartyData = tryParse(readData(FIRST_PARTY_KEY_FINAL, allowedStorage));
-    let actualABGroup = defineABTestingGroup(partnerData?.terminationCause);
+    let actualABGroup = defineABTestingGroup(partnerData?.terminationCause, configParams.abPercentage);
     const currentBrowserLowerCase = detectBrowser();
     const browserBlackList = typeof configParams.browserBlackList === 'string' ? configParams.browserBlackList.toLowerCase() : '';
     const isBlacklisted = browserBlackList?.includes(currentBrowserLowerCase);
@@ -516,19 +516,7 @@ export const intentIqIdSubmodule = {
 
             if ('tc' in respJson) {
               partnerData.terminationCause = respJson.tc;
-              // if (Number(respJson.tc) === 41) {
-              //   firstPartyData.group = WITHOUT_IIQ;
-              //   storeData(FIRST_PARTY_KEY_FINAL, JSON.stringify(firstPartyData), allowedStorage, firstPartyData);
-              //   if (groupChanged) groupChanged(firstPartyData.group, this.partnerData.terminationCause);
-              //   defineEmptyDataAndFireCallback();
-              //   if (gamObjectReference) setGamReporting(gamObjectReference, gamParameterName, firstPartyData.group);
-              //   return
-              // } else {
-              //   firstPartyData.group = WITH_IIQ;
-              //   if (gamObjectReference) setGamReporting(gamObjectReference, gamParameterName, firstPartyData.group);
-              //   if (groupChanged) groupChanged(firstPartyData.group, this.partnerData.terminationCause);
-              // }
-              actualABGroup = defineABTestingGroup(respJson.tc);
+              actualABGroup = defineABTestingGroup(respJson.tc, configParams.abPercentage);
 
               if (gamObjectReference) setGamReporting(gamObjectReference, gamParameterName, actualABGroup);
               if (groupChanged) groupChanged(actualABGroup, partnerData?.terminationCause);
@@ -588,6 +576,13 @@ export const intentIqIdSubmodule = {
               // server provided data
               firstPartyData.spd = respJson.spd;
             }
+
+            if ('abTestUuid' in respJson) {
+              if ('ls' in respJson && respJson.ls === true) {
+                partnerData.abTestUuid = respJson.abTestUuid;
+              }
+            }
+
             if ('gpr' in respJson) {
               // GAM prediction reporting
               partnerData.gpr = respJson.gpr;

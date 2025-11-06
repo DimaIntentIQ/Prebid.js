@@ -1,13 +1,26 @@
 import {WITH_IIQ, WITHOUT_IIQ, AB_PERCENTAGE } from '../intentIqConstants/intentIqConstants.js'
 
 /**
+ * Fix percentage if provided some incorrect data
+ * clampPct(150) => 100
+ * clampPct(-5) => 0
+ * clampPct('abc') => AB_PERCENTAGE
+ */
+export function clampPct(val) {
+  const n = Number(val);
+  if (!Number.isFinite(n)) return AB_PERCENTAGE; // fallback = 95
+  return Math.max(0, Math.min(100, n));
+}
+
+/**
  * Randomly assigns a user to group A or B based on the given percentage.
  * Generates a random number (1–100) and compares it with the percentage.
  *
  * @param {number} percentage The percentage threshold (0–100).
  * @returns {string} Returns WITH_IIQ for Group A or WITHOUT_IIQ for Group B.
  */
-function pickABByPercentage(percentage) {
+function pickABByPercentage(pct) {
+  const percentage = clampPct(pct);
   const roll = Math.floor(Math.random() * 100) + 1;
   return roll <= percentage ? WITH_IIQ : WITHOUT_IIQ; // A : B
 }
@@ -22,9 +35,14 @@ function pickABByPercentage(percentage) {
  * @param {number} [tc] The termination cause value returned by the server.
  * @returns {string} The determined group: WITH_IIQ (A) or WITHOUT_IIQ (B).
  */
-export function defineABTestingGroup(tc) {
+export function defineABTestingGroup(tc, userProvidedPercentage) {
+  if (userProvidedPercentage != null) {
+    return pickABByPercentage(userProvidedPercentage);
+  }
+
   if (typeof tc === 'number' && Number.isFinite(tc)) {
     return tc === 41 ? WITHOUT_IIQ : WITH_IIQ;
   }
+
   return pickABByPercentage(AB_PERCENTAGE);
 }
