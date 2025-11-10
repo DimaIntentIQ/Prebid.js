@@ -395,7 +395,7 @@ describe('IntentIQ tests', function () {
     expect(after).to.deep.equal([WITHOUT_IIQ]);
   });
 
-  it('should read tc from LS and set initial GAM group accordingly', async () => {
+  it('should read tc from LS and set relevant GAM group accordingly', async () => {
     window.localStorage.clear();
     const storageKey = `${FIRST_PARTY_KEY}_${defaultConfigParams.params.partner}`;
     localStorage.setItem(storageKey, JSON.stringify({ terminationCause: 41 }));
@@ -409,9 +409,9 @@ describe('IntentIQ tests', function () {
     await waitForClientHints();
 
     mockGam.cmd.forEach(fn => fn());
-    const initial = mockGam.pubads().getTargeting('intent_iq_group');
+    const group = mockGam.pubads().getTargeting('intent_iq_group');
 
-    expect(initial).to.deep.equal([WITHOUT_IIQ]);
+    expect(group).to.deep.equal([WITHOUT_IIQ]);
   });
 
   it('should use the provided gamParameterName from configParams', function () {

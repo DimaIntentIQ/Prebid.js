@@ -40,9 +40,5 @@ export function defineABTestingGroup(tc, userProvidedPercentage) {
     return tc === 41 ? WITHOUT_IIQ : WITH_IIQ;
   }
 
-  if (userProvidedPercentage != null) {
-    return pickABByPercentage(userProvidedPercentage);
-  }
-
-  return pickABByPercentage(DEFAULT_PERCENTAGE);
+  return pickABByPercentage(typeof userProvidedPercentage === 'number' ? userProvidedPercentage : DEFAULT_PERCENTAGE)
 }
