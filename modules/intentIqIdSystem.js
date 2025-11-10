@@ -414,9 +414,10 @@ export const intentIqIdSubmodule = {
       }
     }
 
+    let hasPartnerData = !!Object.keys(partnerData).length;
     if (!isCMPStringTheSame(firstPartyData, cmpData) ||
           !firstPartyData.sCal ||
-          (partnerData && (!partnerData.cttl || !partnerData.date || Date.now() - partnerData.date > partnerData.cttl))) {
+          (hasPartnerData && (!partnerData.cttl || !partnerData.date || Date.now() - partnerData.date > partnerData.cttl))) {
       firstPartyData.uspString = cmpData.uspString;
       firstPartyData.gppString = cmpData.gppString;
       firstPartyData.gdprString = cmpData.gdprString;
@@ -425,7 +426,6 @@ export const intentIqIdSubmodule = {
       storeData(PARTNER_DATA_KEY, JSON.stringify(partnerData), allowedStorage, firstPartyData);
     }
     if (!shouldCallServer) {
-      let hasPartnerData = !!Object.keys(partnerData).length;
       if (!hasPartnerData && !firstPartyData.isOptedOut) {
         shouldCallServer = true;
       } else shouldCallServer = Date.now() > firstPartyData.sCal + HOURS_24;
