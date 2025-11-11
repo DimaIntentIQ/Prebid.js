@@ -395,7 +395,7 @@ describe('IntentIQ tests', function () {
     expect(after).to.deep.equal([WITHOUT_IIQ]);
   });
 
-  it('should read tc from LS and set relevant GAM group accordingly', async () => {
+  it('should read tc from LS and set relevant GAM group', async () => {
     window.localStorage.clear();
     const storageKey = `${FIRST_PARTY_KEY}_${defaultConfigParams.params.partner}`;
     localStorage.setItem(storageKey, JSON.stringify({ terminationCause: 41 }));
