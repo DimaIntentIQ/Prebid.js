@@ -158,9 +158,7 @@ function receivePartnerData() {
     iiqAnalyticsAnalyticsAdapter.initOptions.dataInLs = null;
     const FPD = window[identityGlobalName]?.firstPartyData
     if (!FPD) {
-      // in fact analytical adapter could not exist without intentIqIdSystem, and first party data is generated there
-      logError('IIQ ANALYTICS → required data missing. Skipping initialization')
-      return
+      return false
     }
     iiqAnalyticsAnalyticsAdapter.initOptions.fpid = FPD
     const partnerData = window[identityGlobalName]?.partnerData
@@ -230,7 +228,12 @@ function bidWon(args, isReportExternal) {
     return;
   }
 
-  receivePartnerData();
+  const success = receivePartnerData();
+  if (success) {
+    // in fact analytical adapter could not exist without intentIqIdSystem, and first party data is generated there
+    logError('IIQ ANALYTICS → required data missing. Skipping initialization')
+    return;
+  }
   if (shouldSendReport(isReportExternal)) {
     const preparedPayload = preparePayload(args);
     if (!preparedPayload) return false;
