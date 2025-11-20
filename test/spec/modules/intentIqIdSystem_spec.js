@@ -81,9 +81,7 @@ function ensureUAData() {
   }
 }
 
-async function waitForClientHints() {
-  const clock = globalThis.__iiqClock;
-
+async function waitForClientHints(clock) {
   if (clock && typeof clock.runAllAsync === 'function') {
     await clock.runAllAsync();
   } else if (clock && typeof clock.runAll === 'function') {
@@ -158,13 +156,11 @@ describe('IntentIQ tests', function () {
     sandbox = sinon.createSandbox();
     logErrorStub = sinon.stub(utils, 'logError');
     clock = sinon.useFakeTimers({ now: Date.now() });
-    globalThis.__iiqClock = clock;
   });
 
   afterEach(async function () {
-    await waitForClientHints(); // wait all timers & promises from CH
+    await waitForClientHints(clock); // wait all timers & promises from CH
     try { clock?.restore(); } catch (_) {}
-    delete globalThis.__iiqClock;
     sandbox.restore();
     logErrorStub.restore?.();
     clearAllCookies();
@@ -176,7 +172,7 @@ describe('IntentIQ tests', function () {
     const callBackSpy = sinon.spy();
     const submoduleCallback = intentIqIdSubmodule.getId({ params: { partner }}).callback;
     submoduleCallback(callBackSpy);
-    await waitForClientHints()
+    await waitForClientHints(clock)
     expect(window[globalName]).to.be.not.undefined
     expect(window[globalName].partnerData).to.be.not.undefined
     expect(window[globalName].firstPartyData).to.be.not.undefined
@@ -210,7 +206,7 @@ describe('IntentIQ tests', function () {
     const callBackSpy = sinon.spy();
     const submoduleCallback = intentIqIdSubmodule.getId(defaultConfigParams).callback;
     submoduleCallback(callBackSpy);
-    await waitForClientHints()
+    await waitForClientHints(clock)
     const request = server.requests[0];
     expect(request.url).to.contain('https://api.intentiq.com/profiles_engine/ProfilesEngineServlet?at=39&mi=10&dpi=10&pt=17&dpn=1&iiqidtype=2&iiqpcid=');
     request.respond(
@@ -226,7 +222,7 @@ describe('IntentIQ tests', function () {
     const callBackSpy = sinon.spy();
     const submoduleCallback = intentIqIdSubmodule.getId({ ...allConfigParams, enabledStorageTypes: ['cookie'] }).callback;
     submoduleCallback(callBackSpy);
-    await waitForClientHints();
+    await waitForClientHints(clock);
 
     const request = server.requests[0];
     expect(request.url).to.contain('https://api.intentiq.com/profiles_engine/ProfilesEngineServlet?at=39&mi=10&dpi=10&pt=17&dpn=1&pai=11&iiqidtype=2&iiqpcid=');
@@ -247,7 +243,7 @@ describe('IntentIQ tests', function () {
     const callBackSpy = sinon.spy();
     const submoduleCallback = intentIqIdSubmodule.getId(defaultConfigParams).callback;
     submoduleCallback(callBackSpy);
-    await waitForClientHints()
+    await waitForClientHints(clock)
     const request = server.requests[0];
     expect(request.url).to.contain('https://api.intentiq.com/profiles_engine/ProfilesEngineServlet?at=39&mi=10&dpi=10&pt=17&dpn=1&iiqidtype=2&iiqpcid=');
     request.respond(
@@ -274,7 +270,7 @@ describe('IntentIQ tests', function () {
     const currentBrowserLowerCase = detectBrowser();
 
     if (currentBrowserLowerCase === usedBrowser) {
-      await waitForClientHints()
+      await waitForClientHints(clock)
       const at20request = server.requests[0];
       expect(at20request.url).to.contain(`&source=${PREBID}`);
       expect(at20request.url).to.contain(`at=20`);
@@ -285,7 +281,7 @@ describe('IntentIQ tests', function () {
     const callBackSpy = sinon.spy();
     const submoduleCallback = intentIqIdSubmodule.getId(defaultConfigParams).callback;
     submoduleCallback(callBackSpy);
-    await waitForClientHints();
+    await waitForClientHints(clock);
     const request = server.requests[0];
 
     expect(request.url).to.contain(`&source=${PREBID}`);
@@ -295,7 +291,7 @@ describe('IntentIQ tests', function () {
     const callBackSpy = sinon.spy();
     const submoduleCallback = intentIqIdSubmodule.getId(paiConfigParams).callback;
     submoduleCallback(callBackSpy);
-    await waitForClientHints();
+    await waitForClientHints(clock);
 
     const request = server.requests[0];
     expect(request.url).to.contain('https://api.intentiq.com/profiles_engine/ProfilesEngineServlet?at=39&mi=10&dpi=10&pt=17&dpn=1&pai=11&iiqidtype=2&iiqpcid=');
@@ -311,7 +307,7 @@ describe('IntentIQ tests', function () {
     const callBackSpy = sinon.spy();
     const submoduleCallback = intentIqIdSubmodule.getId(pcidConfigParams).callback;
     submoduleCallback(callBackSpy);
-    await waitForClientHints();
+    await waitForClientHints(clock);
 
     const request = server.requests[0];
     expect(request.url).to.contain('https://api.intentiq.com/profiles_engine/ProfilesEngineServlet?at=39&mi=10&dpi=10&pt=17&dpn=1');
@@ -328,7 +324,7 @@ describe('IntentIQ tests', function () {
     const callBackSpy = sinon.spy();
     const submoduleCallback = intentIqIdSubmodule.getId(allConfigParams).callback;
     submoduleCallback(callBackSpy);
-    await waitForClientHints();
+    await waitForClientHints(clock);
     const request = server.requests[0];
     expect(request.url).to.contain('https://api.intentiq.com/profiles_engine/ProfilesEngineServlet?at=39&mi=10&dpi=10&pt=17&dpn=1&pai=11&iiqidtype=2&iiqpcid=');
     expect(request.url).to.contain('&pcid=12');
@@ -362,7 +358,7 @@ describe('IntentIQ tests', function () {
 
     const submoduleCallback = intentIqIdSubmodule.getId(defaultConfigParams).callback;
     submoduleCallback(callBackSpy);
-    await waitForClientHints();
+    await waitForClientHints(clock);
     const request = server.requests[0];
 
     mockGamObject.cmd.forEach(cb => cb());
@@ -391,7 +387,7 @@ describe('IntentIQ tests', function () {
 
     const cb = intentIqIdSubmodule.getId(defaultConfigParams).callback;
     cb(() => {});
-    await waitForClientHints();
+    await waitForClientHints(clock);
 
     const req = server.requests[0];
     mockGam.cmd.forEach(fn => fn());
@@ -416,7 +412,7 @@ describe('IntentIQ tests', function () {
 
     const cb = intentIqIdSubmodule.getId(defaultConfigParams).callback;
     cb(() => {});
-    await waitForClientHints();
+    await waitForClientHints(clock);
 
     mockGam.cmd.forEach(fn => fn());
     const group = mockGam.pubads().getTargeting('intent_iq_group');
@@ -483,7 +479,7 @@ describe('IntentIQ tests', function () {
     const callBackSpy = sinon.spy();
     const submoduleCallback = intentIqIdSubmodule.getId(defaultConfigParams).callback;
     submoduleCallback(callBackSpy);
-    await waitForClientHints()
+    await waitForClientHints(clock)
     const request = server.requests[0];
     expect(request.url).to.contain('https://api.intentiq.com/profiles_engine/ProfilesEngineServlet?at=39&mi=10&dpi=10&pt=17&dpn=1&iiqidtype=2&iiqpcid=');
     request.respond(
@@ -498,7 +494,7 @@ describe('IntentIQ tests', function () {
     const callBackSpy = sinon.spy();
     const submoduleCallback = intentIqIdSubmodule.getId(defaultConfigParams).callback;
     submoduleCallback(callBackSpy);
-    await waitForClientHints()
+    await waitForClientHints(clock)
     const request = server.requests[0];
     expect(request.url).to.contain('https://api.intentiq.com/profiles_engine/ProfilesEngineServlet?at=39&mi=10&dpi=10&pt=17&dpn=1&iiqidtype=2&iiqpcid=');
     request.respond(
@@ -513,7 +509,7 @@ describe('IntentIQ tests', function () {
     const callBackSpy = sinon.spy();
     const submoduleCallback = intentIqIdSubmodule.getId(allConfigParams).callback;
     submoduleCallback(callBackSpy);
-    await waitForClientHints()
+    await waitForClientHints(clock)
     const request = server.requests[0];
     expect(request.url).to.contain('https://api.intentiq.com/profiles_engine/ProfilesEngineServlet?at=39&mi=10&dpi=10&pt=17&dpn=1&pai=11&iiqidtype=2&iiqpcid=');
     request.respond(
@@ -529,7 +525,7 @@ describe('IntentIQ tests', function () {
     const callBackSpy = sinon.spy();
     const submoduleCallback = intentIqIdSubmodule.getId(allConfigParams).callback;
     submoduleCallback(callBackSpy);
-    await waitForClientHints()
+    await waitForClientHints(clock)
     const request = server.requests[0];
     expect(request.url).to.contain('https://api.intentiq.com/profiles_engine/ProfilesEngineServlet?at=39&mi=10&dpi=10&pt=17&dpn=1&pai=11&iiqidtype=2&iiqpcid=');
     request.respond(
@@ -546,7 +542,7 @@ describe('IntentIQ tests', function () {
     const callBackSpy = sinon.spy();
     const submoduleCallback = intentIqIdSubmodule.getId(allConfigParams).callback;
     submoduleCallback(callBackSpy);
-    await waitForClientHints()
+    await waitForClientHints(clock)
     const request = server.requests[0];
     expect(request.url).to.contain('https://api.intentiq.com/profiles_engine/ProfilesEngineServlet?at=39&mi=10&dpi=10&pt=17&dpn=1&pai=11&iiqidtype=2&iiqpcid=');
     expect(request.url).to.contain('cttl=' + testLSValue.cttl);
@@ -581,7 +577,7 @@ describe('IntentIQ tests', function () {
     const callBackSpy = sinon.spy();
     const submoduleCallback = intentIqIdSubmodule.getId(defaultConfigParams).callback;
     submoduleCallback(callBackSpy);
-    await waitForClientHints();
+    await waitForClientHints(clock);
     const request = server.requests[0];
     expect(request.url).to.contain('https://api.intentiq.com/profiles_engine/ProfilesEngineServlet?at=39&mi=10&dpi=10&pt=17&dpn=1&iiqidtype=2&iiqpcid=');
     request.respond(
@@ -605,7 +601,7 @@ describe('IntentIQ tests', function () {
     }
     });
 
-    await waitForClientHints();
+    await waitForClientHints(clock);
 
     const at20request = server.requests[0];
     expect(at20request.url).to.contain(`&spd=${encodedSpd}`);
@@ -623,7 +619,7 @@ describe('IntentIQ tests', function () {
     }
     });
 
-    await waitForClientHints();
+    await waitForClientHints(clock);
 
     const at20request = server.requests[0];
     expect(at20request.url).to.contain(`&spd=${encodedSpd}`);
@@ -640,7 +636,7 @@ describe('IntentIQ tests', function () {
     const submoduleCallback = intentIqIdSubmodule.getId(defaultConfigParams).callback;
 
     submoduleCallback(callBackSpy);
-    await waitForClientHints();
+    await waitForClientHints(clock);
     const request = server.requests[0];
 
     expect(request.url).to.contain(`&spd=${encodedSpd}`);
@@ -655,7 +651,7 @@ describe('IntentIQ tests', function () {
     const callBackSpy = sinon.spy();
     const submoduleCallback = intentIqIdSubmodule.getId(defaultConfigParams).callback;
     submoduleCallback(callBackSpy);
-    await waitForClientHints();
+    await waitForClientHints(clock);
     const request = server.requests[0];
 
     expect(request.url).to.contain(`&spd=${encodedSpd}`);
@@ -667,7 +663,7 @@ describe('IntentIQ tests', function () {
     const callBackSpy = sinon.spy();
     const submoduleCallback = intentIqIdSubmodule.getId(defaultConfigParams).callback;
     submoduleCallback(callBackSpy);
-    await waitForClientHints();
+    await waitForClientHints(clock);
     const request = server.requests[0];
 
     request.respond(
@@ -754,7 +750,7 @@ describe('IntentIQ tests', function () {
       const callBackSpy = sinon.spy()
       const submoduleCallback = intentIqIdSubmodule.getId({...allConfigParams, params: {...allConfigParams.params, partner: newPartnerId}}).callback;
       submoduleCallback(callBackSpy);
-      await waitForClientHints();
+      await waitForClientHints(clock);
       const request = server.requests[0];
       expect(request.url).contain("ProfilesEngineServlet?at=39") // server was called
     })
@@ -774,7 +770,7 @@ describe('IntentIQ tests', function () {
 
       storeData(FIRST_PARTY_KEY, JSON.stringify(FPD), allowedStorage, storage)
       const returnedObject = intentIqIdSubmodule.getId({...allConfigParams, params: {...allConfigParams.params, partner: newPartnerId}});
-      await waitForClientHints();
+      await waitForClientHints(clock);
       expect(returnedObject.callback).to.be.undefined
       expect(server.requests.length).to.equal(0) // no server requests
     })
@@ -817,7 +813,7 @@ describe('IntentIQ tests', function () {
       const callBackSpy = sinon.spy();
       const submoduleCallback = intentIqIdSubmodule.getId(allConfigParams).callback;
       submoduleCallback(callBackSpy);
-      await waitForClientHints();
+      await waitForClientHints(clock);
 
       const lsBeforeReq = JSON.parse(localStorage.getItem(FIRST_PARTY_KEY));
 
@@ -845,7 +841,7 @@ describe('IntentIQ tests', function () {
       const data = {eids: {key1: 'value1', key2: 'value2'}}
 
       submoduleCallback(callBackSpy);
-      await waitForClientHints();
+      await waitForClientHints(clock);
       const request = server.requests[0];
       request.respond(
         200,
@@ -879,7 +875,7 @@ describe('IntentIQ tests', function () {
       const submoduleCallback = intentIqIdSubmodule.getId(defaultConfigParams).callback;
 
       submoduleCallback(callBackSpy);
-      await waitForClientHints();
+      await waitForClientHints(clock);
 
       const request = server.requests[0];
       request.respond(
@@ -913,7 +909,7 @@ describe('IntentIQ tests', function () {
       const submoduleCallback = intentIqIdSubmodule.getId({...defaultConfigParams}).callback;
 
       submoduleCallback(callBackSpy);
-      await waitForClientHints();
+      await waitForClientHints(clock);
       const request = server.requests[0];
 
       expect(request.url).to.contain(ENDPOINT_GDPR);
@@ -925,7 +921,7 @@ describe('IntentIQ tests', function () {
       const submoduleCallback = intentIqIdSubmodule.getId({...defaultConfigParams}).callback;
 
       submoduleCallback(callBackSpy);
-      await waitForClientHints();
+      await waitForClientHints(clock);
       const request = server.requests[0];
 
       expect(request.url).to.contain(testAPILink);
@@ -944,7 +940,7 @@ describe('IntentIQ tests', function () {
         } } };
 
       intentIqIdSubmodule.getId({...callbackConfigParams});
-      await waitForClientHints();
+      await waitForClientHints(clock);
 
       const request = server.requests[0];
       expect(request.url).to.contain(syncTestAPILink);
@@ -958,7 +954,7 @@ describe('IntentIQ tests', function () {
       configurable: true
     });
     intentIqIdSubmodule.getId(defaultConfigParams);
-    await waitForClientHints();
+    await waitForClientHints(clock);
 
     const savedClientHints = readData(CLIENT_HINTS_KEY, ['html5'], storage);
     const expectedClientHints = handleClientHints(testClientHints);
@@ -1003,7 +999,7 @@ describe('IntentIQ tests', function () {
 
     // deliver fresh CH from the browser
     resolve(testClientHints);
-    await waitForClientHints();
+    await waitForClientHints(clock);
 
     // LS must be updated; no extra network calls
     const expectedFresh = handleClientHints(testClientHints);
@@ -1027,7 +1023,7 @@ describe('IntentIQ tests', function () {
     expect(req.url).to.include('&uh=OLD_CH_VALUE');
     expect(server.requests.length).to.equal(1);
 
-    await waitForClientHints();
+    await waitForClientHints(clock);
 
     const saved = readData(CLIENT_HINTS_KEY, ['html5'], storage);
     expect(saved === '' || saved === null).to.be.true;
@@ -1043,7 +1039,7 @@ describe('IntentIQ tests', function () {
     const cfg = { params: { ...defaultConfigParams.params, chTimeout: 0 } };
 
     intentIqIdSubmodule.getId(cfg).callback(cbSpy);
-    await waitForClientHints();
+    await waitForClientHints(clock);
 
     const req = server.requests[0];
     const saved = readData(CLIENT_HINTS_KEY, ['html5'], storage);
@@ -1071,7 +1067,7 @@ describe('IntentIQ tests', function () {
 
     // Now deliver fresh CH from browser and wait for background handlers
     resolve(testClientHints);
-    await waitForClientHints();
+    await waitForClientHints(clock);
 
     // LS updated, network not re-fired
     const expectedFresh = handleClientHints(testClientHints);
@@ -1099,7 +1095,7 @@ describe('IntentIQ tests', function () {
     };
 
     intentIqIdSubmodule.getId(cfg);
-    await waitForClientHints();
+    await waitForClientHints(clock);
 
     const req = server.requests[0];
     expect(req).to.exist;
@@ -1126,7 +1122,7 @@ describe('IntentIQ tests', function () {
     };
 
     intentIqIdSubmodule.getId(cfg);
-    await waitForClientHints();
+    await waitForClientHints(clock);
 
     const req = server.requests[0];
     expect(req).to.exist;
@@ -1211,7 +1207,7 @@ describe('IntentIQ tests', function () {
     const callBackSpy = sinon.spy();
     const submoduleCallback = intentIqIdSubmodule.getId(allConfigParams).callback;
     submoduleCallback(callBackSpy);
-    await waitForClientHints()
+    await waitForClientHints(clock)
 
     const request = server.requests[0];
 
@@ -1224,7 +1220,7 @@ describe('IntentIQ tests', function () {
     const configParams = { params: {...allConfigParams.params, sourceMetaData: undefined} };
     const submoduleCallback = intentIqIdSubmodule.getId(configParams).callback;
     submoduleCallback(callBackSpy);
-    await waitForClientHints()
+    await waitForClientHints(clock)
 
     const request = server.requests[0];
 
@@ -1237,7 +1233,7 @@ describe('IntentIQ tests', function () {
     const configParams = { params: {...allConfigParams.params, sourceMetaData: NaN} };
     const submoduleCallback = intentIqIdSubmodule.getId(configParams).callback;
     submoduleCallback(callBackSpy);
-    await waitForClientHints()
+    await waitForClientHints(clock)
     const request = server.requests[0];
 
     expect(request.url).to.include('?at=39')
@@ -1249,7 +1245,7 @@ describe('IntentIQ tests', function () {
     const configParams = { params: {...allConfigParams.params, browserBlackList: 'chrome'} };
 
     intentIqIdSubmodule.getId(configParams);
-    await waitForClientHints()
+    await waitForClientHints(clock)
     const request = server.requests[0];
 
     expect(request.url).to.include('?at=20');
@@ -1260,7 +1256,7 @@ describe('IntentIQ tests', function () {
     const configParams = { params: {...allConfigParams.params, sourceMetaData: NaN, browserBlackList: 'chrome'} };
 
     intentIqIdSubmodule.getId(configParams);
-    await waitForClientHints()
+    await waitForClientHints(clock)
     const request = server.requests[0];
 
     expect(request.url).to.include('?at=20');
@@ -1273,7 +1269,7 @@ describe('IntentIQ tests', function () {
     const configParams = { params: {...allConfigParams.params, browserBlackList: 'chrome', partnerClientId, partnerClientIdType} };
 
     intentIqIdSubmodule.getId(configParams);
-    await waitForClientHints()
+    await waitForClientHints(clock)
     const request = server.requests[0];
 
     expect(request.url).to.include('?at=20');
@@ -1287,7 +1283,7 @@ describe('IntentIQ tests', function () {
     const configParams = { params: {...allConfigParams.params, browserBlackList: 'chrome', partnerClientId, partnerClientIdType} };
 
     intentIqIdSubmodule.getId(configParams);
-    await waitForClientHints()
+    await waitForClientHints(clock)
     const request = server.requests[0];
 
     expect(request.url).to.include('?at=20');
@@ -1301,7 +1297,7 @@ describe('IntentIQ tests', function () {
     const configParams = { params: {...allConfigParams.params, browserBlackList: 'chrome', partnerClientId, partnerClientIdType} };
 
     intentIqIdSubmodule.getId(configParams);
-    await waitForClientHints()
+    await waitForClientHints(clock)
     const request = server.requests[0];
 
     expect(request.url).to.include('?at=20');
@@ -1316,7 +1312,7 @@ describe('IntentIQ tests', function () {
     const configParams = { params: {...allConfigParams.params, partnerClientId, partnerClientIdType} };
     const submoduleCallback = intentIqIdSubmodule.getId(configParams).callback;
     submoduleCallback(callBackSpy);
-    await waitForClientHints()
+    await waitForClientHints(clock)
 
     const request = server.requests[0];
 
@@ -1332,7 +1328,7 @@ describe('IntentIQ tests', function () {
     const configParams = { params: {...allConfigParams.params, partnerClientId, partnerClientIdType} };
     const submoduleCallback = intentIqIdSubmodule.getId(configParams).callback;
     submoduleCallback(callBackSpy);
-    await waitForClientHints()
+    await waitForClientHints(clock)
 
     const request = server.requests[0];
 
@@ -1348,7 +1344,7 @@ describe('IntentIQ tests', function () {
     const configParams = { params: {...allConfigParams.params, partnerClientId, partnerClientIdType} };
     const submoduleCallback = intentIqIdSubmodule.getId(configParams).callback;
     submoduleCallback(callBackSpy);
-    await waitForClientHints()
+    await waitForClientHints(clock)
 
     const request = server.requests[0];
 
@@ -1361,7 +1357,7 @@ describe('IntentIQ tests', function () {
     const configParams = { params: {...allConfigParams.params, browserBlackList: 'chrome', sourceMetaDataExternal: 123} };
 
     intentIqIdSubmodule.getId(configParams);
-    await waitForClientHints()
+    await waitForClientHints(clock)
     const request = server.requests[0];
 
     expect(request.url).to.include('?at=20');
@@ -1372,7 +1368,7 @@ describe('IntentIQ tests', function () {
     const configParams = { params: {...allConfigParams.params, siloEnabled: true} };
 
     intentIqIdSubmodule.getId(configParams);
-    await waitForClientHints()
+    await waitForClientHints(clock)
     const expectedKey = FIRST_PARTY_KEY + '_p_' + configParams.params.partner;
     const storedData = localStorage.getItem(expectedKey);
     const parsed = JSON.parse(storedData);
@@ -1387,7 +1383,7 @@ describe('IntentIQ tests', function () {
     const configParams = { params: {...allConfigParams.params, siloEnabled: true} };
     const submoduleCallback = intentIqIdSubmodule.getId(configParams).callback;
     submoduleCallback(callBackSpy);
-    await waitForClientHints()
+    await waitForClientHints(clock)
 
     const request = server.requests[0];
 
@@ -1405,7 +1401,7 @@ describe('IntentIQ tests', function () {
     const submoduleCallback = intentIqIdSubmodule.getId(defaultConfigParams).callback;
     const callBackSpy = sinon.spy();
     submoduleCallback(callBackSpy);
-    await waitForClientHints()
+    await waitForClientHints(clock)
 
     const request = server.requests[0];
     request.respond(200, responseHeader, JSON.stringify(responseData));
@@ -1423,7 +1419,7 @@ describe('IntentIQ tests', function () {
     const submoduleCallback = intentIqIdSubmodule.getId(defaultConfigParams).callback;
     const callBackSpy = sinon.spy();
     submoduleCallback(callBackSpy);
-    await waitForClientHints()
+    await waitForClientHints(clock)
 
     const request = server.requests[0];
     request.respond(503, responseHeader, 'Service Unavailable');
@@ -1443,7 +1439,7 @@ describe('IntentIQ tests', function () {
     const submoduleCallback = intentIqIdSubmodule.getId(defaultConfigParams).callback;
     const callBackSpy = sinon.spy();
     submoduleCallback(callBackSpy);
-    await waitForClientHints()
+    await waitForClientHints(clock)
 
     const request = server.requests[0];
     request.respond(200, responseHeader, JSON.stringify(responseData));
@@ -1466,7 +1462,7 @@ describe('IntentIQ tests', function () {
     };
 
     intentIqIdSubmodule.getId(configParams);
-    await waitForClientHints()
+    await waitForClientHints(clock)
     const syncRequest = server.requests[0];
 
     expect(syncRequest.url).to.include('general=Lee');
@@ -1486,7 +1482,7 @@ describe('IntentIQ tests', function () {
     const callBackSpy = sinon.spy();
     const submoduleCallback = intentIqIdSubmodule.getId(configParams).callback;
     submoduleCallback(callBackSpy);
-    await waitForClientHints()
+    await waitForClientHints(clock)
     const vrRequest = server.requests[0];
 
     expect(vrRequest.url).to.include('general=Lee');
@@ -1507,7 +1503,7 @@ describe('IntentIQ tests', function () {
     const callBackSpy = sinon.spy();
     const submoduleCallback = intentIqIdSubmodule.getId(configParams).callback;
     submoduleCallback(callBackSpy);
-    await waitForClientHints()
+    await waitForClientHints(clock)
     const vrRequest = server.requests[0];
 
     expect(vrRequest.url).not.to.include('general=');
@@ -1529,7 +1525,7 @@ describe('IntentIQ tests', function () {
     const callBackSpy = sinon.spy();
     const submoduleCallback = intentIqIdSubmodule.getId(configParams).callback;
     submoduleCallback(callBackSpy);
-    await waitForClientHints()
+    await waitForClientHints(clock)
     const vrRequest = server.requests[0];
 
     expect(vrRequest.url).not.to.include('general=');
@@ -1547,7 +1543,7 @@ describe('IntentIQ tests', function () {
 
     const submoduleCallback = intentIqIdSubmodule.getId(configParams).callback;
     submoduleCallback(callBackSpy);
-    await waitForClientHints()
+    await waitForClientHints(clock)
 
     const request = server.requests[0];
     request.respond(
@@ -1576,7 +1572,7 @@ describe('IntentIQ tests', function () {
 
     const submoduleCallback = intentIqIdSubmodule.getId(configParams).callback;
     submoduleCallback(callBackSpy);
-    await waitForClientHints()
+    await waitForClientHints(clock)
 
     const request = server.requests[0];
     request.respond(
