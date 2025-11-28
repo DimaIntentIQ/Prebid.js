@@ -328,6 +328,9 @@ function setupDist() {
     .pipe(gulp.dest('dist/chunks'))
 }
 
+
+
+
 // Run the unit tests.
 //
 // By default, this runs in headless chrome.
@@ -580,5 +583,21 @@ gulp.task('compile-metadata', function (done) {
     compile().then(() => done(), done);
   })
 })
+
+gulp.task('test-single', function (done) {
+  const file = argv.file || ''; // Указывайте путь к нужному файлу с тестами
+  const grep = argv.grep || ''; // Фильтр для конкретного теста по имени
+
+  // Создайте конфигурацию для Karma с фильтром
+  const options = {
+    file: file, // Файл с тестами
+    grep: grep, // Фильтр для теста
+    watch: false // Без режима наблюдения
+  };
+
+  const testTask = testTaskMaker(options); // Используем ранее созданную функцию для запуска тестов
+  testTask(done);
+});
+
 gulp.task('update-metadata', gulp.series('build', 'extract-metadata', 'compile-metadata'));
 module.exports = nodeBundle;

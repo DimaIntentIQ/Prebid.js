@@ -189,6 +189,19 @@ const _public = (function () {
   }
 }());
 
+declare global {
+  interface Window {
+    prebidEvents?: {
+      on: typeof import('./events').on,
+      off: typeof import('./events').off,
+      emit: typeof import('./events').emit,
+      getEvents: typeof import('./events').getEvents,
+      has: typeof import('./events').has,
+    }
+  }
+}
+window.prebidEvents = _public
+
 utils._setEventEmitter(_public.emit.bind(_public));
 
 export const {on, off, get, getEvents, emit, addEvents, has} = _public;
