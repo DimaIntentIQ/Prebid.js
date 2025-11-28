@@ -422,6 +422,7 @@ function getDefaultDataObject() {
 function constructFullUrl(data) {
   const report = [];
   const reportMethod = iiqAnalyticsAnalyticsAdapter.initOptions.reportMethod;
+  const partnerData = window[identityGlobalName]?.partnerData;
   const currentBrowserLowerCase = detectBrowser();
   data = btoa(JSON.stringify(data));
   report.push(data);
@@ -448,7 +449,7 @@ function constructFullUrl(data) {
         (cmpData.uspString ? '&us_privacy=' + encodeURIComponent(cmpData.uspString) : '') +
         (cmpData.gppString ? '&gpp=' + encodeURIComponent(cmpData.gppString) : '') +
         (cmpData.gdprString ? '&gdpr_consent=' + encodeURIComponent(cmpData.gdprString) + '&gdpr=1' : '&gdpr=0');
-  url = appendSPData(url, iiqAnalyticsAnalyticsAdapter.initOptions.fpid);
+  url = appendSPData(url, partnerData);
   url = appendVrrefAndFui(url, iiqAnalyticsAnalyticsAdapter.initOptions.domainName);
 
   if (reportMethod === 'POST') {
