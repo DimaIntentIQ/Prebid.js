@@ -920,9 +920,14 @@ describe('IntentIQ tests', function () {
     });
 
     it('should make request to correct address with iiqServerAddress parameter', async function() {
-      defaultConfigParams.params.iiqServerAddress = testAPILink
+      const customParams = {
+        params: {
+          ...defaultConfigParams.params,
+          iiqServerAddress: testAPILink
+        }
+      };
       const callBackSpy = sinon.spy();
-      const submoduleCallback = intentIqIdSubmodule.getId({...defaultConfigParams}).callback;
+      const submoduleCallback = intentIqIdSubmodule.getId({...customParams}).callback;
 
       submoduleCallback(callBackSpy);
       await waitForClientHints();
@@ -948,6 +953,55 @@ describe('IntentIQ tests', function () {
 
       const request = server.requests[0];
       expect(request.url).to.contain(syncTestAPILink);
+    });
+
+    it('should use region-specific api endpoint when region is "apac"', async function () {
+      const ENDPOINT_APAC = 'https://api-apac.intentiq.com';
+      mockConsentHandlers(uspData, gppData, gdprData); // gdprApplies = true
+
+      const callBackSpy = sinon.spy();
+      const configWithRegionApac = {
+        params: {
+          ...defaultConfigParams.params,
+          region: 'apac'
+        }
+      };
+
+      const submoduleCallback = intentIqIdSubmodule.getId(configWithRegionApac).callback;
+
+      submoduleCallback(callBackSpy);
+      await waitForClientHints();
+
+      const request = server.requests[0];
+      expect(request.url).to.contain(ENDPOINT_APAC);
+    });
+
+    it('should use region-specific sync endpoint when region is "emea"', async function () {
+      const SYNC_ENDPOINT_EMEA = 'https://sync-emea.intentiq.com';
+
+      let wasCallbackCalled = false;
+
+      const callbackConfigParams = {
+        params: {
+          partner,
+          pai,
+          partnerClientIdType,
+          partnerClientId,
+          browserBlackList: 'Chrome',
+          region: 'emea',
+          callback: () => {
+            wasCallbackCalled = true;
+          }
+        }
+      };
+
+      mockConsentHandlers(uspData, gppData, gdprData);
+
+      intentIqIdSubmodule.getId({ ...callbackConfigParams });
+      await waitForClientHints();
+
+      const request = server.requests[0];
+      expect(request.url).to.contain(SYNC_ENDPOINT_EMEA);
     });
   });
 

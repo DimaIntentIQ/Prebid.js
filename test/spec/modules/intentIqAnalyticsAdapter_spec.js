@@ -428,6 +428,30 @@ describe("IntentIQ tests all", function () {
     gdprStub.restore();
   });
 
+  it("should send request to region-specific report endpoint when region is n 'apac'", function () {
+    const userIdConfig = getUserConfigWithReportingServerAddress();
+
+    config.getConfig.restore();
+    sinon
+      .stub(config, "getConfig")
+      .withArgs("userSync.userIds")
+      .returns(userIdConfig);
+
+    enableAnalyticWithSpecialOptions({
+      region: "apac",
+    });
+
+    events.emit(EVENTS.BID_WON, getWonRequest());
+
+    expect(server.requests.length).to.be.above(0);
+    const request = server.requests[0];
+
+    const REGION_REPORT_ENDPOINT_APAC =
+      "https://reports-apac.intentiq.com/report";
+
+    expect(request.url).to.contain(REGION_REPORT_ENDPOINT_APAC);
+  });
+
   it("should not send request if manualWinReportEnabled is true", function () {
     iiqAnalyticsAnalyticsAdapter.initOptions.manualWinReportEnabled = true;
     events.emit(EVENTS.BID_WON, getWonRequest());
