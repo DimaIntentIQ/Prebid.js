@@ -74,10 +74,7 @@ function getIntentIqConfig() {
 const DEFAULT_URL = 'https://reports.intentiq.com/report';
 
 const getDataForDefineURL = () => {
-  const cmpData = getCmpData();
-  const gdprDetected = cmpData.gdprString;
-
-  return [iiqAnalyticsAnalyticsAdapter.initOptions.reportingServerAddress, gdprDetected];
+  return [iiqAnalyticsAnalyticsAdapter.initOptions.reportingServerAddress, iiqAnalyticsAnalyticsAdapter.initOptions.region];
 };
 
 const iiqAnalyticsAnalyticsAdapter = Object.assign(adapter({ url: DEFAULT_URL, analyticsType }), {
@@ -96,7 +93,8 @@ const iiqAnalyticsAnalyticsAdapter = Object.assign(adapter({ url: DEFAULT_URL, a
     abPercentage: null,
     abTestUuid: null,
     additionalParams: null,
-    reportingServerAddress: ''
+    reportingServerAddress: '',
+    region: ''
   },
   track({ eventType, args }) {
     switch (eventType) {
@@ -126,7 +124,7 @@ function initAdapterConfig(config) {
   const iiqIdSystemConfig = getIntentIqConfig();
 
   if (iiqIdSystemConfig) {
-    const { manualWinReportEnabled, gamPredictReporting, reportMethod, reportingServerAddress: reportEndpoint, adUnitConfig } = config?.options || {}
+    const { manualWinReportEnabled, gamPredictReporting, reportMethod, reportingServerAddress: reportEndpoint, region, adUnitConfig } = config?.options || {}
     iiqAnalyticsAnalyticsAdapter.initOptions.lsValueInitialized = true;
     iiqAnalyticsAnalyticsAdapter.initOptions.partner =
             iiqIdSystemConfig.params?.partner && !isNaN(iiqIdSystemConfig.params.partner) ? iiqIdSystemConfig.params.partner : -1;
@@ -144,6 +142,7 @@ function initAdapterConfig(config) {
     iiqAnalyticsAnalyticsAdapter.initOptions.additionalParams = iiqIdSystemConfig.params?.additionalParams || null;
     iiqAnalyticsAnalyticsAdapter.initOptions.gamPredictReporting = typeof gamPredictReporting === 'boolean' ? gamPredictReporting : false;
     iiqAnalyticsAnalyticsAdapter.initOptions.reportingServerAddress = typeof reportEndpoint === 'string' ? reportEndpoint : '';
+    iiqAnalyticsAnalyticsAdapter.initOptions.region = typeof region === 'string' ? region : '';
     iiqAnalyticsAnalyticsAdapter.initOptions.adUnitConfig = typeof adUnitConfig === 'number' ? adUnitConfig : 1;
   } else {
     logError('IIQ ANALYTICS -> there is no initialized intentIqIdSystem module')
