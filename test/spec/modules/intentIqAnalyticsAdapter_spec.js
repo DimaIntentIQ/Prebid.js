@@ -65,6 +65,28 @@ const defaultIdentityObject = {
     8: '"Chromium";v="142.0.7444.60", "Google Chrome";v="142.0.7444.60", "Not_A Brand";v="99.0.0.0"',
   },
 };
+const regionCases = [
+  {
+    name: 'default (no region)',
+    region: undefined,
+    expectedEndpoint: 'https://reports.intentiq.com/report'
+  },
+  {
+    name: 'apac',
+    region: 'apac',
+    expectedEndpoint: 'https://reports-apac.intentiq.com/report'
+  },
+  {
+    name: 'emea',
+    region: 'emea',
+    expectedEndpoint: 'https://reports-emea.intentiq.com/report'
+  },
+  {
+    name: 'gdpr',
+    region: 'gdpr',
+    expectedEndpoint: 'https://reports-gdpr.intentiq.com/report'
+  }
+]
 const version = VERSION;
 const REPORT_ENDPOINT = "https://reports.intentiq.com/report";
 const REPORT_ENDPOINT_GDPR = "https://reports-gdpr.intentiq.com/report";
@@ -321,28 +343,6 @@ describe("IntentIQ tests all", function () {
     expect(payloadDecoded).to.have.property("adType", externalWinEvent.adType);
   });
 
-  it("should send report to report-gdpr address if gdpr is detected", function () {
-    const gppStub = sinon
-      .stub(gppDataHandler, "getConsentData")
-      .returns({ gppString: '{"key1":"value1","key2":"value2"}' });
-    const uspStub = sinon
-      .stub(uspDataHandler, "getConsentData")
-      .returns("1NYN");
-    const gdprStub = sinon
-      .stub(gdprDataHandler, "getConsentData")
-      .returns({ consentString: "gdprConsent" });
-
-    events.emit(EVENTS.BID_WON, getWonRequest());
-
-    expect(server.requests.length).to.be.above(0);
-    const request = server.requests[0];
-
-    expect(request.url).to.contain(REPORT_ENDPOINT_GDPR);
-    gppStub.restore();
-    uspStub.restore();
-    gdprStub.restore();
-  });
-
   it("should initialize with default configurations", function () {
     expect(iiqAnalyticsAnalyticsAdapter.initOptions.lsValueInitialized).to.be
       .false;
@@ -428,28 +428,24 @@ describe("IntentIQ tests all", function () {
     gdprStub.restore();
   });
 
-  it("should send request to region-specific report endpoint when region is n 'apac'", function () {
-    const userIdConfig = getUserConfigWithReportingServerAddress();
+  regionCases.forEach(({ name, region, expectedEndpoint }) => {
+    it(`should send request to region-specific report endpoint when region is "${name}"`, function () {
+      const userIdConfig = getUserConfigWithReportingServerAddress();
 
-    config.getConfig.restore();
-    sinon
-      .stub(config, "getConfig")
-      .withArgs("userSync.userIds")
-      .returns(userIdConfig);
+      config.getConfig.restore();
+      sinon
+        .stub(config, 'getConfig')
+        .withArgs('userSync.userIds')
+        .returns(userIdConfig);
 
-    enableAnalyticWithSpecialOptions({
-      region: "apac",
+      enableAnalyticWithSpecialOptions({ region });
+
+      events.emit(EVENTS.BID_WON, getWonRequest());
+
+      expect(server.requests.length).to.be.above(0);
+      const request = server.requests[0];
+      expect(request.url).to.contain(expectedEndpoint);
     });
-
-    events.emit(EVENTS.BID_WON, getWonRequest());
-
-    expect(server.requests.length).to.be.above(0);
-    const request = server.requests[0];
-
-    const REGION_REPORT_ENDPOINT_APAC =
-      "https://reports-apac.intentiq.com/report";
-
-    expect(request.url).to.contain(REGION_REPORT_ENDPOINT_APAC);
   });
 
   it("should not send request if manualWinReportEnabled is true", function () {

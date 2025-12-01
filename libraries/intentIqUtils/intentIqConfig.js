@@ -10,25 +10,24 @@ function checkRegion(region) {
   return REGION_MAPPING[lower] ? lower : '';
 }
 
-function buildServerAddress(baseName, region, gdprDetected) {
+function buildServerAddress(baseName, region) {
   const checkedRegion = checkRegion(region);
   if (checkedRegion) return `https://${baseName}-${checkedRegion}.intentiq.com`;
-  if (gdprDetected) return `https://${baseName}-gdpr.intentiq.com`;
   return `https://${baseName}.intentiq.com`;
 }
 
-export const iiqServerAddress = (configParams = {}, gdprDetected) => {
+export const getIiqServerAddress = (configParams = {}) => {
   if (typeof configParams?.iiqServerAddress === 'string') return configParams.iiqServerAddress;
-  return buildServerAddress('api', configParams.region, gdprDetected);
+  return buildServerAddress('api', configParams.region);
 };
 
-export const iiqPixelServerAddress = (configParams = {}, gdprDetected) => {
+export const iiqPixelServerAddress = (configParams = {}) => {
   if (typeof configParams?.iiqPixelServerAddress === 'string') return configParams.iiqPixelServerAddress;
-  return buildServerAddress('sync', configParams.region, gdprDetected);
+  return buildServerAddress('sync', configParams.region);
 };
 
-export const reportingServerAddress = (reportEndpoint, gdprDetected, region) => {
+export const reportingServerAddress = (reportEndpoint, region) => {
   if (reportEndpoint && typeof reportEndpoint === 'string') return reportEndpoint;
-  const host = buildServerAddress('reports', region, gdprDetected);
+  const host = buildServerAddress('reports', region);
   return `${host}/report`;
 };

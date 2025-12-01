@@ -74,10 +74,7 @@ function getIntentIqConfig() {
 const DEFAULT_URL = 'https://reports.intentiq.com/report';
 
 const getDataForDefineURL = () => {
-  const cmpData = getCmpData();
-  const gdprDetected = cmpData.gdprString;
-
-  return [iiqAnalyticsAnalyticsAdapter.initOptions.reportingServerAddress, gdprDetected, iiqAnalyticsAnalyticsAdapter.initOptions.region];
+  return [iiqAnalyticsAnalyticsAdapter.initOptions.reportingServerAddress, iiqAnalyticsAnalyticsAdapter.initOptions.region];
 };
 
 const iiqAnalyticsAnalyticsAdapter = Object.assign(adapter({ url: DEFAULT_URL, analyticsType }), {
