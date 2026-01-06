@@ -23,7 +23,7 @@ import {
   HOURS_24, CH_KEYS
 } from '../libraries/intentIqConstants/intentIqConstants.js';
 import {SYNC_KEY} from '../libraries/intentIqUtils/getSyncKey.js';
-import {iiqPixelServerAddress, iiqServerAddress} from '../libraries/intentIqUtils/intentIqConfig.js';
+import {iiqPixelServerAddress, getIiqServerAddress} from '../libraries/intentIqUtils/intentIqConfig.js';
 import { handleAdditionalParams } from '../libraries/intentIqUtils/handleAdditionalParams.js';
 import { decryptData, encryptData } from '../libraries/intentIqUtils/cryptionUtils.js';
 import { defineABTestingGroup } from '../libraries/intentIqUtils/defineABTestingGroupUtils.js';
@@ -171,7 +171,7 @@ export function createPixelUrl(firstPartyData, clientHints, configParams, partne
   url = appendCMPData(url, cmpData);
   url = addMetaData(url, sourceMetaDataExternal || sourceMetaData);
   url = handleAdditionalParams(browser, url, 0, configParams.additionalParams);
-  url = appendSPData(url, firstPartyData)
+  url = appendSPData(url, partnerData);
   url += '&source=' + PREBID;
   return url;
 }
@@ -498,7 +498,7 @@ export const intentIqIdSubmodule = {
     updateGlobalObj() // update global object before server request, to make sure analytical adapter will have it even if the server is "not in time"
 
     // use protocol relative urls for http or https
-    let url = `${iiqServerAddress(configParams, gdprDetected)}/profiles_engine/ProfilesEngineServlet?at=39&mi=10&dpi=${configParams.partner}&pt=17&dpn=1`;
+    let url = `${getIiqServerAddress(configParams)}/profiles_engine/ProfilesEngineServlet?at=39&mi=10&dpi=${configParams.partner}&pt=17&dpn=1`;
     url += configParams.pai ? '&pai=' + encodeURIComponent(configParams.pai) : '';
     url = appendFirstPartyData(url, firstPartyData, partnerData);
     url = appendPartnersFirstParty(url, configParams);
@@ -511,7 +511,7 @@ export const intentIqIdSubmodule = {
     url += actualABGroup ? '&testGroup=' + encodeURIComponent(actualABGroup) : '';
     url = addMetaData(url, sourceMetaDataExternal || sourceMetaData);
     url = handleAdditionalParams(currentBrowserLowerCase, url, 1, additionalParams);
-    url = appendSPData(url, firstPartyData)
+    url = appendSPData(url, partnerData)
     url += '&source=' + PREBID;
     url += '&ABTestingConfigurationSource=' + configParams.ABTestingConfigurationSource
     url += '&abtg=' + encodeURIComponent(actualABGroup)
@@ -604,7 +604,7 @@ export const intentIqIdSubmodule = {
 
             if ('spd' in respJson) {
               // server provided data
-              firstPartyData.spd = respJson.spd;
+              partnerData.spd = respJson.spd;
             }
 
             if ('abTestUuid' in respJson) {
