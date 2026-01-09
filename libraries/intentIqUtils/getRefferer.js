@@ -14,7 +14,7 @@ export function getReferrer() {
     } else {
       // iframe: try parent url
       try {
-        url = getWindowTop().location.href; // SecurityError if cross-origin
+        url = getWindowTop().location.href;
       } catch (e) {
         // cross-origin: fallback to iframe url
         url = getWindowLocation().href;
