@@ -6,13 +6,27 @@ import { getWindowTop, logError, getWindowLocation, getWindowSelf } from '../../
  */
 export function getReferrer() {
   try {
-    const url = getWindowSelf() === getWindowTop()
-      ? getWindowLocation().href
-      : getWindowTop().location.href;
+    let url = '';
+
+    if (getWindowSelf() === getWindowTop()) {
+      // top page
+      url = getWindowLocation().href;
+    } else {
+      // iframe: try parent url
+      try {
+        url = getWindowTop().location.href; // SecurityError if cross-origin
+      } catch (e) {
+        // cross-origin: fallback to iframe url
+        url = getWindowLocation().href;
+      }
+    }
 
     if (url.length >= 50) {
-      const { origin } = new URL(url);
-      return origin;
+      try {
+        return new URL(url).origin;
+      } catch {
+        return url;
+      }
     }
 
     return url;
@@ -31,12 +45,12 @@ export function getReferrer() {
  * @return {string} The modified URL with appended `vrref` or `fui` parameters.
  */
 export function appendVrrefAndFui(url, domainName) {
-  const fullUrl = encodeURIComponent(getReferrer());
+  const fullUrl = getReferrer();
   if (fullUrl) {
-    return (url += '&vrref=' + getRelevantRefferer(domainName, fullUrl));
+    return (url += '&vrref=' + encodeURIComponent(getRelevantRefferer(domainName, fullUrl)));
   }
   url += '&fui=1'; // Full Url Issue
-  url += '&vrref=' + encodeURIComponent(domainName || '');
+  if (domainName) url += '&vrref=' + encodeURIComponent(domainName);
   return url;
 }
 
@@ -50,7 +64,7 @@ export function getRelevantRefferer(domainName, fullUrl) {
   if (domainName && isDomainIncluded(fullUrl, domainName)) {
     return fullUrl;
   }
-  return domainName ? encodeURIComponent(domainName) : fullUrl;
+  return domainName || fullUrl;
 }
 
 /**
@@ -61,7 +75,7 @@ export function getRelevantRefferer(domainName, fullUrl) {
  */
 export function isDomainIncluded(fullUrl, domainName) {
   try {
-    return fullUrl.includes(domainName);
+    return new URL(fullUrl).hostname === domainName;
   } catch (error) {
     logError(`Invalid URL provided: ${error}`);
     return false;
