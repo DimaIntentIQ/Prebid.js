@@ -70,10 +70,7 @@ const PARAMS_NAMES = {
 const DEFAULT_URL = 'https://reports.intentiq.com/report';
 
 const getDataForDefineURL = () => {
-  const cmpData = getCmpData();
-  const gdprDetected = cmpData.gdprString;
-
-  return [iiqAnalyticsAnalyticsAdapter.initOptions.reportingServerAddress, gdprDetected];
+  return [iiqAnalyticsAnalyticsAdapter.initOptions.reportingServerAddress, iiqAnalyticsAnalyticsAdapter.initOptions.region];
 };
 
 const getDefaultInitOptions = () => {
@@ -92,7 +89,8 @@ const getDefaultInitOptions = () => {
     abPercentage: null,
     abTestUuid: null,
     additionalParams: null,
-    reportingServerAddress: ''
+    reportingServerAddress: '',
+    region: ''
   }
 }
 
@@ -123,12 +121,13 @@ function initAdapterConfig(config) {
 
   const options = config?.options || {}
   iiqConfig = options
-  const { manualWinReportEnabled, gamPredictReporting, reportMethod, reportingServerAddress, adUnitConfig, partner, ABTestingConfigurationSource, browserBlackList, domainName, additionalParams } = options
+  const { manualWinReportEnabled, gamPredictReporting, reportMethod, reportingServerAddress, region, adUnitConfig, partner, ABTestingConfigurationSource, browserBlackList, domainName, additionalParams } = options
   iiqAnalyticsAnalyticsAdapter.initOptions.manualWinReportEnabled =
             manualWinReportEnabled || false;
   iiqAnalyticsAnalyticsAdapter.initOptions.reportMethod = parseReportingMethod(reportMethod);
   iiqAnalyticsAnalyticsAdapter.initOptions.gamPredictReporting = typeof gamPredictReporting === 'boolean' ? gamPredictReporting : false;
   iiqAnalyticsAnalyticsAdapter.initOptions.reportingServerAddress = typeof reportingServerAddress === 'string' ? reportingServerAddress : '';
+  iiqAnalyticsAnalyticsAdapter.initOptions.region = typeof region === 'string' ? region : '';
   iiqAnalyticsAnalyticsAdapter.initOptions.adUnitConfig = typeof adUnitConfig === 'number' ? adUnitConfig : 1;
   iiqAnalyticsAnalyticsAdapter.initOptions.configSource = ABTestingConfigurationSource;
   iiqAnalyticsAnalyticsAdapter.initOptions.currentGroup = defineABTestingGroup(options);
@@ -410,6 +409,7 @@ function getDefaultDataObject() {
 function constructFullUrl(data) {
   const report = [];
   const reportMethod = iiqAnalyticsAnalyticsAdapter.initOptions.reportMethod;
+  const partnerData = window[identityGlobalName]?.partnerData;
   const currentBrowserLowerCase = detectBrowser();
   data = btoa(JSON.stringify(data));
   report.push(data);
@@ -436,6 +436,7 @@ function constructFullUrl(data) {
         (cmpData.uspString ? '&us_privacy=' + encodeURIComponent(cmpData.uspString) : '') +
         (cmpData.gppString ? '&gpp=' + encodeURIComponent(cmpData.gppString) : '') +
         (cmpData.gdprString ? '&gdpr_consent=' + encodeURIComponent(cmpData.gdprString) + '&gdpr=1' : '&gdpr=0');
+  url = appendSPData(url, partnerData);
   url = appendSPData(url, iiqAnalyticsAnalyticsAdapter.initOptions.fpid);
   url = appendVrrefAndFui(url, iiqAnalyticsAnalyticsAdapter.initOptions.domainName);
 
