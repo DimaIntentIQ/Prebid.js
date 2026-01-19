@@ -7,7 +7,7 @@ import { detectBrowser } from '../libraries/intentIqUtils/detectBrowserUtils.js'
 import { appendSPData } from '../libraries/intentIqUtils/urlUtils.js';
 import { appendVrrefAndFui, getReferrer } from '../libraries/intentIqUtils/getRefferer.js';
 import { getCmpData } from '../libraries/intentIqUtils/getCmpData.js';
-import { resolvePosFromPbjs } from '../libraries/intentIqUtils/resolvePosFromPbjs.js';
+import { getUnitPosition } from '../libraries/intentIqUtils/getUnitPosition.js';
 import {
   VERSION,
   PREBID,
@@ -353,7 +353,7 @@ function prepareData(data, result) {
   if (typeof data.pos === 'number') {
     result.pos = data.pos;
   } else if (data.adUnitCode) {
-    const pos = resolvePosFromPbjs(pbjs, data.adUnitCode);
+    const pos = getUnitPosition(pbjs, data.adUnitCode);
     if (typeof pos === 'number') result.pos = pos;
   }
 

@@ -1,4 +1,4 @@
-export function resolvePosFromPbjs(pbjs, adUnitCode) {
+export function getUnitPosition(pbjs, adUnitCode) {
   const adUnits = pbjs?.adUnits;
   if (!Array.isArray(adUnits) || !adUnitCode) return;
 
