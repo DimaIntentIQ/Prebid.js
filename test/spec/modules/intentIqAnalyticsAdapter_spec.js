@@ -320,7 +320,7 @@ describe("IntentIQ tests all", function () {
     expect(payloadDecoded).to.have.property("adType", externalWinEvent.adType);
   });
 
-  it("should resolve pos from pbjs.adUnits when BID_WON has no pos", function () {
+  it("should get pos from pbjs.adUnits when BID_WON has no pos", function () {
     const pbjs = getGlobal();
     const prevAdUnits = pbjs.adUnits;
 
@@ -344,21 +344,28 @@ describe("IntentIQ tests all", function () {
     pbjs.adUnits = prevAdUnits;
   });
 
-  it("should resolve pos from BID_WON event when present", function () {
-    const bidWonPos = 999;
-    enableAnalyticWithSpecialOptions({ manualWinReportEnabled: false });
+  it("should get pos from reportExternalWin when present", function () {
+    enableAnalyticWithSpecialOptions({ manualWinReportEnabled: true });
 
-    events.emit(EVENTS.BID_WON, {
-      ...getWonRequest(),
+    const winPos = 999;
+
+    window[`intentIqAnalyticsAdapter_${partner}`].reportExternalWin({
+      adUnitCode: "myVideoAdUnit",
+      bidderCode: "appnexus",
+      cpm: 1.5,
+      currency: "USD",
       mediaType: "video",
-      pos: bidWonPos
+      size: "300x250",
+      status: "rendered",
+      auctionId: "auc123",
+      pos: winPos
     });
 
     const request = server.requests[0];
     const payloadEncoded = new URL(request.url).searchParams.get("payload");
     const payloadDecoded = JSON.parse(atob(JSON.parse(payloadEncoded)[0]));
 
-    expect(payloadDecoded.pos).to.equal(bidWonPos);
+    expect(payloadDecoded.pos).to.equal(winPos);
   });
 
   // it("should send report to report-gdpr address if gdpr is detected", function () {
