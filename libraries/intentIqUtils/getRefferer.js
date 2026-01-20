@@ -12,13 +12,14 @@ export function getCurrentUrl() {
       // top page
       url = getWindowLocation().href || '';
     } else {
-      // iframe: try parent url
+      // iframe
       url = getWindowTop().location.href || '';
     }
-    // shorten long urls
+
     if (url.length >= 50) {
       return new URL(url).origin;
     };
+
     return url;
   } catch (error) {
     // Handling access errors, such as cross-domain restrictions
