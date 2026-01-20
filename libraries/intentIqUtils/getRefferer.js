@@ -4,33 +4,24 @@ import { getWindowTop, logError, getWindowLocation, getWindowSelf } from '../../
  * Determines if the script is running inside an iframe and retrieves the URL.
  * @return {string} The encoded vrref value representing the relevant URL.
  */
-export function getReferrer() {
-  try {
-    let url = '';
 
+export function getCurrentUrl() {
+  let url = '';
+  try {
     if (getWindowSelf() === getWindowTop()) {
       // top page
-      url = getWindowLocation().href;
+      url = getWindowLocation().href || '';
     } else {
       // iframe: try parent url
-      try {
-        url = getWindowTop().location.href;
-      } catch (e) {
-        // cross-origin: fallback to iframe url
-        url = getWindowLocation().href;
-      }
+      url = getWindowTop().location.href || '';
     }
-
+    // shorten long urls
     if (url.length >= 50) {
-      try {
-        return new URL(url).origin;
-      } catch {
-        return url;
-      }
-    }
-
+      return new URL(url).origin;
+    };
     return url;
   } catch (error) {
+    // Handling access errors, such as cross-domain restrictions
     logError(`Error accessing location: ${error}`);
     return '';
   }
@@ -45,9 +36,9 @@ export function getReferrer() {
  * @return {string} The modified URL with appended `vrref` or `fui` parameters.
  */
 export function appendVrrefAndFui(url, domainName) {
-  const fullUrl = getReferrer();
+  const fullUrl = getCurrentUrl();
   if (fullUrl) {
-    return (url += '&vrref=' + encodeURIComponent(getRelevantRefferer(domainName, fullUrl)));
+    return (url += '&vrref=' + getRelevantRefferer(domainName, fullUrl));
   }
   url += '&fui=1'; // Full Url Issue
   if (domainName) url += '&vrref=' + encodeURIComponent(domainName);
@@ -61,10 +52,9 @@ export function appendVrrefAndFui(url, domainName) {
  * @return {string} The relevant referrer
  */
 export function getRelevantRefferer(domainName, fullUrl) {
-  if (domainName && isDomainIncluded(fullUrl, domainName)) {
-    return fullUrl;
-  }
-  return domainName || fullUrl;
+  return encodeURIComponent(
+    domainName && isDomainIncluded(fullUrl, domainName) ? fullUrl : (domainName || fullUrl)
+  );
 }
 
 /**

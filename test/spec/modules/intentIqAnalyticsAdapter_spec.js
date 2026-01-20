@@ -21,7 +21,7 @@ import {
 } from "../../../libraries/intentIqConstants/intentIqConstants.js";
 import * as detectBrowserUtils from "../../../libraries/intentIqUtils/detectBrowserUtils.js";
 import {
-  getReferrer,
+  getCurrentUrl,
   appendVrrefAndFui,
 } from "../../../libraries/intentIqUtils/getRefferer.js";
 import {
@@ -483,7 +483,7 @@ describe("IntentIQ tests all", function () {
       .stub(utils, "getWindowLocation")
       .returns({ href: "http://localhost:9876/" });
 
-    const referrer = getReferrer();
+    const referrer = getCurrentUrl();
     expect(referrer).to.equal("http://localhost:9876/");
   });
 
@@ -494,7 +494,7 @@ describe("IntentIQ tests all", function () {
       .stub(utils, "getWindowTop")
       .returns({ location: { href: "http://example.com/" } });
 
-    const referrer = getReferrer();
+    const referrer = getCurrentUrl();
 
     expect(referrer).to.equal("http://example.com/");
   });
@@ -506,7 +506,7 @@ describe("IntentIQ tests all", function () {
       .stub(utils, "getWindowTop")
       .throws(new Error("Access denied"));
 
-    const referrer = getReferrer();
+    const referrer = getCurrentUrl();
     expect(referrer).to.equal("");
     expect(logErrorStub.calledOnce).to.be.true;
     expect(logErrorStub.firstCall.args[0]).to.contain(
