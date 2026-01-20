@@ -594,6 +594,36 @@ describe("IntentIQ tests all", function () {
     expect(request.url).to.include("general=Lee");
   });
 
+  it("should include domainName in both query and payload when fullUrl is empty (cross-origin)", function () {
+    const domainName = "mydomain-frame.com";
+
+    enableAnalyticWithSpecialOptions({ domainName });
+
+    getWindowTopStub = sinon.stub(utils, "getWindowTop").throws(new Error("cross-origin"));
+
+    events.emit(EVENTS.BID_WON, getWonRequest());
+
+    const request = server.requests[0];
+
+    // Query contain vrref=domainName
+    const parsedUrl = new URL(request.url);
+    const vrrefParam = parsedUrl.searchParams.get("vrref");
+
+    // Payload contain vrref=domainName
+    const payloadEncoded = parsedUrl.searchParams.get("payload");
+    const payloadDecoded = JSON.parse(atob(JSON.parse(payloadEncoded)[0]));
+
+    expect(server.requests.length).to.be.above(0);
+    expect(vrrefParam).to.not.equal(null);
+    expect(decodeURIComponent(vrrefParam)).to.equal(domainName);
+    expect(parsedUrl.searchParams.get("fui")).to.equal("1");
+
+    expect(payloadDecoded).to.have.property("vrref");
+    expect(decodeURIComponent(payloadDecoded.vrref)).to.equal(domainName);
+
+    restoreReportList();
+  });
+
   it("should not send additionalParams in report if value is too large", function () {
     const longVal = "x".repeat(5000000);
 
