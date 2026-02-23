@@ -11,6 +11,7 @@ import { submodule } from '../src/hook.js'
 import { detectBrowser } from '../libraries/intentIqUtils/detectBrowserUtils.js';
 import { appendSPData } from '../libraries/intentIqUtils/urlUtils.js';
 import { isCHSupported } from '../libraries/intentIqUtils/chUtils.js'
+import { setPPID } from '../libraries/intentIqUtils/setPPID.js'
 import { appendVrrefAndFui } from '../libraries/intentIqUtils/getRefferer.js';
 import { getCmpData } from '../libraries/intentIqUtils/getCmpData.js';
 import { readData, storeData, defineStorageType, removeDataByKey, tryParse } from '../libraries/intentIqUtils/storageUtils.js';
@@ -297,21 +298,12 @@ export const intentIqIdSubmodule = {
   getId(config) {
     const configParams = (config?.params) || {};
 
-    const firePartnerCallback = () => {
-      if (configParams.callback && !callbackFired) {
-        callbackFired = true;
-        if (callbackTimeoutID) clearTimeout(callbackTimeoutID);
-        let data = runtimeEids;
-        if (data?.eids?.length === 1 && typeof data.eids[0] === 'string') data = data.eids[0];
-        configParams.callback(data);
-      }
-      updateGlobalObj()
-    }
-
     if (typeof configParams.partner !== 'number') {
       logError('User ID - intentIqId submodule requires a valid partner to be defined');
-      firePartnerCallback()
-      return;
+      if (configParams.callback) {
+        configParams.callback({ eids: [] });
+      }
+      return { id: [] };
     }
 
     initializeGlobalIIQ(configParams.partner)
@@ -328,6 +320,7 @@ export const intentIqIdSubmodule = {
     sourceMetaDataExternal = isNumber(configParams.sourceMetaDataExternal) ? configParams.sourceMetaDataExternal : undefined;
     const additionalParams = configParams.additionalParams ? configParams.additionalParams : undefined;
     const chTimeout = Number(configParams?.chTimeout) >= 0 ? Number(configParams.chTimeout) : 10;
+    const shouldSetPPID = configParams?.shouldSetPPID ? configParams.shouldSetPPID : false;
     PARTNER_DATA_KEY = `${FIRST_PARTY_KEY}_${configParams.partner}`;
 
     const allowedStorage = defineStorageType(config.enabledStorageTypes);
@@ -344,6 +337,18 @@ export const intentIqIdSubmodule = {
     const browserBlackList = typeof configParams.browserBlackList === 'string' ? configParams.browserBlackList.toLowerCase() : '';
     const isBlacklisted = browserBlackList?.includes(currentBrowserLowerCase);
     let newUser = false;
+
+    const firePartnerCallback = () => {
+      if (configParams.callback && !callbackFired) {
+        callbackFired = true;
+        if (callbackTimeoutID) clearTimeout(callbackTimeoutID);
+        setPPID({ runtimeEids, gamObjectReference, shouldSetPPID, isBlacklisted });
+        let data = runtimeEids;
+        if (data?.eids?.length === 1 && typeof data.eids[0] === 'string') data = data.eids[0];
+        configParams.callback(data);
+      }
+      updateGlobalObj()
+    }
 
     setGamReporting(gamObjectReference, gamParameterName, actualABGroup, isBlacklisted);
 
