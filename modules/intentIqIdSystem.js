@@ -208,9 +208,21 @@ export function setGamReporting(gamObjectReference, gamParameterName, userGroup,
   if (isBlacklisted) return;
   if (isPlainObject(gamObjectReference) && gamObjectReference.cmd) {
     gamObjectReference.cmd.push(() => {
-      gamObjectReference
-        .pubads()
-        .setTargeting(gamParameterName, userGroup);
+      if (typeof gamObjectReference.setConfig === 'function') {
+        const currentConfig = typeof gamObjectReference.getConfig === 'function'
+          ? gamObjectReference.getConfig('targeting')
+          : {};
+        const updatedConfig = {
+          targeting: {
+            ...(isPlainObject(currentConfig) ? currentConfig.targeting : {}),
+            [gamParameterName]: userGroup
+          }
+        }
+        gamObjectReference.setConfig(updatedConfig);
+        return;
+      }
+      const pubads = gamObjectReference?.pubads?.();
+      if (pubads?.setTargeting) pubads.setTargeting(gamParameterName, userGroup);
     });
   }
 }
