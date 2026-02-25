@@ -218,7 +218,7 @@ function bidWon(args, isReportExternal) {
 
   if (shouldSendReport(isReportExternal)) {
     const success = receivePartnerData();
-    const preparedPayload = preparePayload(args);
+    const preparedPayload = preparePayload(args, isReportExternal);
     if (!preparedPayload) return false;
     if (success === false) {
       preparedPayload[PARAMS_NAMES.terminationCause] = -1
@@ -268,7 +268,7 @@ function getRandom(start, end) {
   return Math.floor(Math.random() * (end - start + 1) + start);
 }
 
-export function preparePayload(data) {
+export function preparePayload(data, isReportExternal) {
   const result = getDefaultDataObject();
   const fullUrl = getCurrentUrl();
   result[PARAMS_NAMES.partnerId] = iiqAnalyticsAnalyticsAdapter.initOptions.partner;
@@ -297,7 +297,7 @@ export function preparePayload(data) {
   if (iiqAnalyticsAnalyticsAdapter.initOptions.configSource) {
     result[PARAMS_NAMES.ABTestingConfigurationSource] = iiqAnalyticsAnalyticsAdapter.initOptions.configSource
   }
-  prepareData(data, result);
+  prepareData(data, result, isReportExternal);
 
   if (shouldSubscribeOnGAM()) {
     if (!reportList[result.placementId] || !reportList[result.placementId][result.prebidAuctionId]) {
@@ -327,7 +327,7 @@ function fillEidsData(result) {
   }
 }
 
-function prepareData(data, result) {
+function prepareData(data, result, isReportExternal) {
   const adTypeValue = data.adType || data.mediaType;
 
   if (data.bidderCode) {
@@ -387,7 +387,12 @@ function prepareData(data, result) {
   }
 
   result.biddingPlatformId = data.biddingPlatformId || 1;
-  result.partnerAuctionId = 'BW';
+
+  if (isReportExternal && data && data.partnerAuctionId) {
+    result.partnerAuctionId = data.partnerAuctionId;
+  } else {
+    result.partnerAuctionId = 'BW';
+  }
 }
 
 function extractPlacementId(data) {
@@ -424,6 +429,7 @@ function constructFullUrl(data) {
   const reportMethod = iiqAnalyticsAnalyticsAdapter.initOptions.reportMethod;
   const partnerData = window[identityGlobalName]?.partnerData;
   const currentBrowserLowerCase = detectBrowser();
+  const partnerAuctionId = data.partnerAuctionId || 'BW';
   data = btoa(JSON.stringify(data));
   report.push(data);
 
@@ -434,6 +440,7 @@ function constructFullUrl(data) {
         baseUrl +
         '?pid=' +
         iiqAnalyticsAnalyticsAdapter.initOptions.partner +
+        '&paucid=' + encodeURIComponent(JSON.stringify([partnerAuctionId])) +
         '&mct=1' +
         (iiqAnalyticsAnalyticsAdapter.initOptions?.fpid
           ? '&iiqid=' + encodeURIComponent(iiqAnalyticsAnalyticsAdapter.initOptions.fpid.pcid)
@@ -451,17 +458,17 @@ function constructFullUrl(data) {
         (cmpData.gdprString ? '&gdpr_consent=' + encodeURIComponent(cmpData.gdprString) + '&gdpr=1' : '&gdpr=0');
   url = appendSPData(url, partnerData);
   url = appendVrrefAndFui(url, iiqAnalyticsAnalyticsAdapter.initOptions.domainName);
-
-  if (reportMethod === 'POST') {
-    return { url, method: 'POST', payload: JSON.stringify(report) };
-  }
-  url += '&payload=' + encodeURIComponent(JSON.stringify(report));
   url = handleAdditionalParams(
     currentBrowserLowerCase,
     url,
     2,
     iiqAnalyticsAnalyticsAdapter.initOptions.additionalParams
   );
+
+  if (reportMethod === 'POST') {
+    return { url, method: 'POST', payload: JSON.stringify(report) };
+  }
+  url += '&payload=' + encodeURIComponent(JSON.stringify(report));
   return { url, method: 'GET' };
 }
 
