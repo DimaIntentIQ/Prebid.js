@@ -209,20 +209,15 @@ export function setGamReporting(gamObjectReference, gamParameterName, userGroup,
   if (isPlainObject(gamObjectReference) && gamObjectReference.cmd) {
     gamObjectReference.cmd.push(() => {
       if (typeof gamObjectReference.setConfig === 'function') {
-        const currentConfig = typeof gamObjectReference.getConfig === 'function'
-          ? gamObjectReference.getConfig('targeting')
-          : {};
-        const updatedConfig = {
+        gamObjectReference.setConfig({
           targeting: {
-            ...(isPlainObject(currentConfig) ? currentConfig.targeting : {}),
             [gamParameterName]: userGroup
           }
-        }
-        gamObjectReference.setConfig(updatedConfig);
+        });
         return;
       }
-      const pubads = gamObjectReference?.pubads?.();
-      if (pubads?.setTargeting) pubads.setTargeting(gamParameterName, userGroup);
+      // Fallback in case an older version of Google Publisher Tag is used.
+      gamObjectReference?.pubads?.()?.setTargeting?.(gamParameterName, userGroup);
     });
   }
 }
