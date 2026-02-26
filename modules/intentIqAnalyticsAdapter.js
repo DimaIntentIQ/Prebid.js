@@ -218,7 +218,7 @@ function bidWon(args, isReportExternal) {
 
   if (shouldSendReport(isReportExternal)) {
     const success = receivePartnerData();
-    const preparedPayload = preparePayload(args, isReportExternal);
+    const preparedPayload = preparePayload(args);
     if (!preparedPayload) return false;
     if (success === false) {
       preparedPayload[PARAMS_NAMES.terminationCause] = -1
@@ -268,7 +268,7 @@ function getRandom(start, end) {
   return Math.floor(Math.random() * (end - start + 1) + start);
 }
 
-export function preparePayload(data, isReportExternal) {
+export function preparePayload(data) {
   const result = getDefaultDataObject();
   const fullUrl = getCurrentUrl();
   result[PARAMS_NAMES.partnerId] = iiqAnalyticsAnalyticsAdapter.initOptions.partner;
@@ -297,7 +297,7 @@ export function preparePayload(data, isReportExternal) {
   if (iiqAnalyticsAnalyticsAdapter.initOptions.configSource) {
     result[PARAMS_NAMES.ABTestingConfigurationSource] = iiqAnalyticsAnalyticsAdapter.initOptions.configSource
   }
-  prepareData(data, result, isReportExternal);
+  prepareData(data, result);
 
   if (shouldSubscribeOnGAM()) {
     if (!reportList[result.placementId] || !reportList[result.placementId][result.prebidAuctionId]) {
@@ -327,30 +327,16 @@ function fillEidsData(result) {
   }
 }
 
-function prepareData(data, result, isReportExternal) {
+function prepareData(data, result) {
   const adTypeValue = data.adType || data.mediaType;
 
-  if (data.bidderCode) {
-    result.bidderCode = data.bidderCode;
-  }
-  if (data.cpm) {
-    result.cpm = data.cpm;
-  }
-  if (data.currency) {
-    result.currency = data.currency;
-  }
-  if (data.originalCpm) {
-    result.originalCpm = data.originalCpm;
-  }
-  if (data.originalCurrency) {
-    result.originalCurrency = data.originalCurrency;
-  }
-  if (data.status) {
-    result.status = data.status;
-  }
-  if (data.size) {
-    result.size = data.size;
-  }
+  if (data.bidderCode) result.bidderCode = data.bidderCode;
+  if (data.cpm) result.cpm = data.cpm;
+  if (data.currency) result.currency = data.currency;
+  if (data.originalCpm) result.originalCpm = data.originalCpm;
+  if (data.originalCurrency) result.originalCurrency = data.originalCurrency;
+  if (data.status) result.status = data.status;
+  if (data.size) result.size = data.size;
   if (typeof data.pos === 'number') {
     result.pos = data.pos;
   } else if (data.adUnitCode) {
@@ -360,9 +346,7 @@ function prepareData(data, result, isReportExternal) {
 
   result.prebidAuctionId = data.auctionId || data.prebidAuctionId;
 
-  if (adTypeValue) {
-    result[PARAMS_NAMES.adType] = adTypeValue;
-  }
+  if (adTypeValue) result[PARAMS_NAMES.adType] = adTypeValue;
 
   switch (iiqAnalyticsAnalyticsAdapter.initOptions.adUnitConfig) {
     case 1:
@@ -388,11 +372,7 @@ function prepareData(data, result, isReportExternal) {
 
   result.biddingPlatformId = data.biddingPlatformId || 1;
 
-  if (isReportExternal && data && data.partnerAuctionId) {
-    result.partnerAuctionId = data.partnerAuctionId;
-  } else {
-    result.partnerAuctionId = 'BW';
-  }
+  if (data?.partnerAuctionId) result.partnerAuctionId = data.partnerAuctionId;
 }
 
 function extractPlacementId(data) {
@@ -413,7 +393,6 @@ function getDefaultDataObject() {
   return {
     inbbl: false,
     pbjsver: prebidVersion,
-    partnerAuctionId: 'BW',
     reportSource: 'pbjs',
     jsversion: VERSION,
     partnerId: -1,
@@ -429,7 +408,7 @@ function constructFullUrl(data) {
   const reportMethod = iiqAnalyticsAnalyticsAdapter.initOptions.reportMethod;
   const partnerData = window[identityGlobalName]?.partnerData;
   const currentBrowserLowerCase = detectBrowser();
-  const partnerAuctionId = data.partnerAuctionId || 'BW';
+  const partnerAuctionId = data?.partnerAuctionId;
   data = btoa(JSON.stringify(data));
   report.push(data);
 
@@ -439,9 +418,13 @@ function constructFullUrl(data) {
   let url =
         baseUrl +
         '?pid=' +
-        iiqAnalyticsAnalyticsAdapter.initOptions.partner +
-        '&paucid=' + encodeURIComponent(JSON.stringify([partnerAuctionId])) +
-        '&mct=1' +
+        iiqAnalyticsAnalyticsAdapter.initOptions.partner;
+  if (partnerAuctionId) {
+    url +=
+          '&paucid=' +
+          encodeURIComponent(JSON.stringify([partnerAuctionId]));
+  }
+  url += '&mct=1' +
         (iiqAnalyticsAnalyticsAdapter.initOptions?.fpid
           ? '&iiqid=' + encodeURIComponent(iiqAnalyticsAnalyticsAdapter.initOptions.fpid.pcid)
           : '') +
