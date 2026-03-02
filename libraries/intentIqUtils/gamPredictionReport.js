@@ -1,5 +1,5 @@
 import { getEvents } from '../../src/events.js';
-import { logError } from '../../src/utils.js';
+import { isPlainObject, logError } from '../../src/utils.js';
 
 export function gamPredictionReport (gamObjectReference, sendData) {
   try {
@@ -7,11 +7,26 @@ export function gamPredictionReport (gamObjectReference, sendData) {
     const getSlotTargeting = (slot) => {
       const kvs = {};
       try {
-        (slot.getTargetingKeys() || []).forEach((k) => {
-          kvs[k] = slot.getTargeting(k);
-        });
+        if (typeof slot.getConfig === 'function') {
+          const current = slot.getConfig('targeting');
+          const targeting = isPlainObject(current?.targeting)
+            ? current.targeting
+            : (isPlainObject(current) ? current : {});
+          for (const k in targeting) {
+            const v = targeting[k];
+            if (v == null) continue;
+            kvs[k] = Array.isArray(v) ? v : [typeof v === 'string' ? v : String(v)];
+          }
+          return kvs;
+        }
+        // Fallback in case an older version of Google Publisher Tag is used.
+        if (typeof slot.getTargetingKeys === 'function' && typeof slot.getTargeting === 'function') {
+          (slot.getTargetingKeys() || []).forEach((k) => {
+            kvs[k] = slot.getTargeting(k);
+          });
+        }
       } catch (e) {
-        logError('Failed to get targeting keys: ' + e);
+        logError('Failed to get slot targeting: ' + e);
       }
       return kvs;
     };
