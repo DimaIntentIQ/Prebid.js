@@ -3,7 +3,10 @@ import { isPlainObject, logError } from '../../src/utils.js';
 
 export function gamPredictionReport (gamObjectReference, sendData) {
   try {
-    if (!gamObjectReference || !sendData) logError('Failed to get gamPredictionReport, required data is missed');
+    if (!gamObjectReference || !sendData) {
+      logError('Failed to get gamPredictionReport, required data is missed');
+      return
+    }
     const getSlotTargeting = (slot) => {
       const kvs = {};
       try {
