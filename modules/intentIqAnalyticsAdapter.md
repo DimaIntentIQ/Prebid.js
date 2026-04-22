@@ -105,7 +105,7 @@ pos: 0 // The following values are defined in the ORTB 2.5 spec
 | originalCpm | Decimal | Leave empty or undefined if Prebid is not the bidding platform | 5.5 | No |
 | originalCurrency | String | Currency of the original auction | USD | No |
 | status | String | Status of the impression. Leave empty or undefined if Prebid is not the bidding platform | rendered | No |
-| placementId | String | Unique identifier of the ad unit on the webpage that showed this ad | div-1 | No |
+| placementId | String | Unique identifier of the ad unit on the webpage that showed this ad | div-1 | Yes |
 | adType | String | Specifies the type of ad served. Possible values: “banner“, “video“, “native“, “audio“. | banner | No |
 
 To report the auction win, call the function as follows:
