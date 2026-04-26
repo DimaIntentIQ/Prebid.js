@@ -5,7 +5,7 @@
  * @requires module:modules/userId
  */
 
-import { logError, isPlainObject, isStr, isNumber } from '../src/utils.js';
+import { logError, isPlainObject, isStr, isNumber, logInfo } from '../src/utils.js';
 import { ajax } from '../src/ajax.js';
 import { submodule } from '../src/hook.js'
 import { detectBrowser } from '../libraries/intentIqUtils/detectBrowserUtils.js';
@@ -27,6 +27,7 @@ import { iiqPixelServerAddress, getIiqServerAddress } from '../libraries/intentI
 import { handleAdditionalParams } from '../libraries/intentIqUtils/handleAdditionalParams.js';
 import { decryptData, encryptData } from '../libraries/intentIqUtils/cryptionUtils.js';
 import { defineABTestingGroup } from '../libraries/intentIqUtils/defineABTestingGroupUtils.js';
+import adapterManager from '../src/adapterManager.js';
 
 /**
  * @typedef {import('../modules/userId/index.js').Submodule} Submodule
@@ -275,6 +276,24 @@ function storeCounters(storage, partnerData) {
   partnerData.failCount = failCount;
   partnerData.noDataCounter = noDataCount;
   storeData(PARTNER_DATA_KEY, JSON.stringify(partnerData), storage, firstPartyData);
+}
+
+function hasIIQAnalytics() {
+  try {
+    const adapter = adapterManager.getAnalyticsAdapter('iiqAnalytics');
+    const exists = !!adapter;
+    const enabled = !!adapter?.adapter?.enabled;
+
+    logInfo('IIQ -> Analytics adapter status', {
+      exists,
+      enabled,
+      adapter
+    });
+
+    return exists && enabled;
+  } catch (e) {
+    return false;
+  }
 }
 
 /** @type {Submodule} */
@@ -531,6 +550,13 @@ export const intentIqIdSubmodule = {
       storeData(FIRST_PARTY_KEY_FINAL, JSON.stringify(firstPartyData), allowedStorage, firstPartyData);
       storeData(PARTNER_DATA_KEY, JSON.stringify(partnerData), allowedStorage, firstPartyData);
     }
+
+    setTimeout(() => {
+      const analyticsPresent = hasIIQAnalytics();
+      if (!analyticsPresent) {
+        logError('IIQ -> Analytics adapter (iiqAnalytics) is missing or not enabled');
+      }
+    }, 0);
 
     const resp = function (callback) {
       const callbacks = {
