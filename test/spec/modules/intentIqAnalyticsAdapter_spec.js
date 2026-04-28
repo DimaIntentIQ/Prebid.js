@@ -1071,4 +1071,30 @@ describe("IntentIQ tests all", function () {
     expect(JSON.parse(paucidParam)).to.deep.equal([partnerAuctionId]);
     expect(payloadDecoded.partnerAuctionId).to.equal(partnerAuctionId);
   });
+
+  it('should include abPercentage and userPercentage in payload when set in global identity object', function () {
+    window[identityName].abPercentage = 70;
+    window[identityName].userProvidedAbPercentage = 70;
+    events.emit(EVENTS.BID_WON, getWonRequest());
+
+    const request = server.requests[0];
+    const url = new URL(request.url);
+    const decoded = JSON.parse(atob(JSON.parse(url.searchParams.get('payload'))[0]));
+
+    expect(decoded.abPercentage).to.equal(70);
+    expect(decoded.userPercentage).to.equal(70);
+  });
+
+  it('should include abPercentage but not userPercentage in payload when abPercentage is set but user did not provide it', function () {
+    window[identityName].abPercentage = 95;
+    window[identityName].userProvidedAbPercentage = undefined;
+    events.emit(EVENTS.BID_WON, getWonRequest());
+
+    const request = server.requests[0];
+    const url = new URL(request.url);
+    const decoded = JSON.parse(atob(JSON.parse(url.searchParams.get('payload'))[0]));
+
+    expect(decoded.abPercentage).to.equal(95);
+    expect(decoded).to.not.have.property('userPercentage');
+  });
 });
