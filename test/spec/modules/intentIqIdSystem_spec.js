@@ -1090,6 +1090,56 @@ describe('IntentIQ tests', function () {
     expect(url).to.not.include('&uh=');
   });
 
+  it('should include testPercentage with configured abPercentage in pixel URL', function () {
+    const firstPartyData = {};
+    const configParams = { partner: 'testPartner', domainName: 'example.com', abPercentage: 70 };
+    const partnerData = {};
+    const cmpData = {};
+    const url = createPixelUrl(firstPartyData, undefined, configParams, partnerData, cmpData);
+
+    expect(url).to.include('&testPercentage=70');
+  });
+
+  it('should not include testPercentage when abPercentage is not configured in pixel URL', function () {
+    const firstPartyData = {};
+    const configParams = { partner: 'testPartner', domainName: 'example.com' };
+    const partnerData = {};
+    const cmpData = {};
+    const url = createPixelUrl(firstPartyData, undefined, configParams, partnerData, cmpData);
+
+    expect(url).to.not.include('testPercentage');
+  });
+
+  it('should include testPercentage=0 when abPercentage is explicitly 0 in pixel URL', function () {
+    const firstPartyData = {};
+    const configParams = { partner: 'testPartner', domainName: 'example.com', abPercentage: 0 };
+    const partnerData = {};
+    const cmpData = {};
+    const url = createPixelUrl(firstPartyData, undefined, configParams, partnerData, cmpData);
+
+    expect(url).to.include('&testPercentage=0');
+  });
+
+  it('should clamp abPercentage out of range in pixel URL', function () {
+    const firstPartyData = {};
+    const configParams = { partner: 'testPartner', domainName: 'example.com', abPercentage: 150 };
+    const partnerData = {};
+    const cmpData = {};
+    const url = createPixelUrl(firstPartyData, undefined, configParams, partnerData, cmpData);
+
+    expect(url).to.include('&testPercentage=100');
+  });
+
+  it('should include isInTestGroup in pixel URL', function () {
+    const firstPartyData = {};
+    const configParams = { partner: 'testPartner', domainName: 'example.com', abPercentage: 100 };
+    const partnerData = {};
+    const cmpData = {};
+    const url = createPixelUrl(firstPartyData, undefined, configParams, partnerData, cmpData);
+
+    expect(url).to.include('&isInTestGroup=');
+  });
+
   it('should sends uh from LS immediately and later updates LS with fresh CH', async () => {
     localStorage.setItem(CLIENT_HINTS_KEY, 'OLD_CH_VALUE');
     const callBackSpy = sinon.spy();
@@ -1730,5 +1780,55 @@ describe('IntentIQ tests', function () {
     expect(request.url).to.contain(`testGroup=${usedGroup}`);
     expect(callBackSpy.calledOnce).to.be.true;
     expect(groupChangedSpy.calledWith(usedGroup)).to.be.true;
+  });
+
+  it('should include testPercentage with configured abPercentage in AT=39 URL', async function () {
+    const callBackSpy = sinon.spy();
+    const configParams = {
+      params: { ...defaultConfigParams.params, abPercentage: 70 }
+    };
+    const submoduleCallback = intentIqIdSubmodule.getId(configParams).callback;
+    submoduleCallback(callBackSpy);
+    await waitForClientHints();
+    const request = server.requests[0];
+
+    expect(request.url).to.contain('testPercentage=70');
+  });
+
+  it('should not include testPercentage in AT=39 URL when abPercentage is not configured', async function () {
+    const callBackSpy = sinon.spy();
+    const configParams = { params: { partner } };
+    const submoduleCallback = intentIqIdSubmodule.getId(configParams).callback;
+    submoduleCallback(callBackSpy);
+    await waitForClientHints();
+    const request = server.requests[0];
+
+    expect(request.url).to.not.contain('testPercentage');
+  });
+
+  it('should include testPercentage=0 when abPercentage is explicitly 0 in AT=39 URL', async function () {
+    const callBackSpy = sinon.spy();
+    const configParams = {
+      params: { ...defaultConfigParams.params, abPercentage: 0 }
+    };
+    const submoduleCallback = intentIqIdSubmodule.getId(configParams).callback;
+    submoduleCallback(callBackSpy);
+    await waitForClientHints();
+    const request = server.requests[0];
+
+    expect(request.url).to.contain('testPercentage=0');
+  });
+
+  it('should clamp abPercentage out of range in AT=39 URL', async function () {
+    const callBackSpy = sinon.spy();
+    const configParams = {
+      params: { ...defaultConfigParams.params, abPercentage: 150 }
+    };
+    const submoduleCallback = intentIqIdSubmodule.getId(configParams).callback;
+    submoduleCallback(callBackSpy);
+    await waitForClientHints();
+    const request = server.requests[0];
+
+    expect(request.url).to.contain('testPercentage=100');
   });
 });
