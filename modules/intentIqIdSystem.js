@@ -20,7 +20,7 @@ import {
   EMPTY,
   GVLID,
   VERSION, INVALID_ID, SYNC_REFRESH_MILL, META_DATA_CONSTANT, PREBID,
-  HOURS_72, CH_KEYS
+  HOURS_72, CH_KEYS, DEFAULT_PERCENTAGE, WITH_IIQ
 } from '../libraries/intentIqConstants/intentIqConstants.js';
 import { SYNC_KEY } from '../libraries/intentIqUtils/getSyncKey.js';
 import { iiqPixelServerAddress, getIiqServerAddress } from '../libraries/intentIqUtils/intentIqConfig.js';
@@ -61,6 +61,12 @@ export let firstPartyData;
 let partnerData;
 let clientHints;
 let actualABGroup
+
+function getEffectiveAbPercentage(abPercentage) {
+  const n = Number(abPercentage);
+  if (!Number.isFinite(n)) return DEFAULT_PERCENTAGE;
+  return Math.max(0, Math.min(100, n));
+}
 
 /**
  * Generate standard UUID string
@@ -173,6 +179,11 @@ export function createPixelUrl(firstPartyData, clientHints, configParams, partne
   url = handleAdditionalParams(browser, url, 0, configParams.additionalParams);
   url = appendSPData(url, partnerData);
   url += '&source=' + PREBID;
+  url += actualABGroup ? '&testGroup=' + encodeURIComponent(actualABGroup) : '';
+  if (isNumber(configParams.abPercentage)) {
+    url += '&testPercentage=' + encodeURIComponent(getEffectiveAbPercentage(configParams.abPercentage));
+  }
+  url += '&isInTestGroup=' + (actualABGroup === WITH_IIQ);
   return url;
 }
 
@@ -443,6 +454,8 @@ export const intentIqIdSubmodule = {
         window[globalName].firstPartyData = firstPartyData
         window[globalName].clientHints = clientHints
         window[globalName].actualABGroup = actualABGroup
+        window[globalName].abPercentage = getEffectiveAbPercentage(configParams.abPercentage)
+        window[globalName].userProvidedAbPercentage = configParams.abPercentage
       }
     }
 
@@ -515,6 +528,9 @@ export const intentIqIdSubmodule = {
     url = appendCounters(url);
     url += VERSION ? '&jsver=' + VERSION : '';
     url += actualABGroup ? '&testGroup=' + encodeURIComponent(actualABGroup) : '';
+    if (isNumber(configParams.abPercentage)) {
+      url += '&testPercentage=' + encodeURIComponent(getEffectiveAbPercentage(configParams.abPercentage));
+    }
     url = addMetaData(url, sourceMetaDataExternal || sourceMetaData);
     url = handleAdditionalParams(currentBrowserLowerCase, url, 1, additionalParams);
     url = appendSPData(url, partnerData)

@@ -68,6 +68,8 @@ const PARAMS_NAMES = {
   placementId: 'placementId',
   adType: 'adType',
   abTestUuid: 'abTestUuid',
+  abPercentage: 'abPercentage',
+  userPercentage: 'userPercentage',
 };
 
 const DEFAULT_URL = 'https://reports.intentiq.com/report';
@@ -90,6 +92,7 @@ const getDefaultInitOptions = () => {
     siloEnabled: false,
     reportMethod: null,
     abPercentage: null,
+    userPercentage: null,
     abTestUuid: null,
     additionalParams: null,
     reportingServerAddress: '',
@@ -175,6 +178,12 @@ function receivePartnerData() {
       iiqAnalyticsAnalyticsAdapter.initOptions.currentGroup = actualABGroup;
     }
     iiqAnalyticsAnalyticsAdapter.initOptions.clientHints = clientHints;
+
+    const { abPercentage, userProvidedAbPercentage } = window[identityGlobalName];
+    if (abPercentage !== undefined) {
+      iiqAnalyticsAnalyticsAdapter.initOptions.abPercentage = abPercentage;
+    }
+    iiqAnalyticsAnalyticsAdapter.initOptions.userPercentage = userProvidedAbPercentage;
   } catch (e) {
     logError(e);
     return false;
@@ -296,6 +305,12 @@ export function preparePayload(data) {
   }
   if (iiqAnalyticsAnalyticsAdapter.initOptions.configSource) {
     result[PARAMS_NAMES.ABTestingConfigurationSource] = iiqAnalyticsAnalyticsAdapter.initOptions.configSource
+  }
+  if (iiqAnalyticsAnalyticsAdapter.initOptions.abPercentage !== null) {
+    result[PARAMS_NAMES.abPercentage] = iiqAnalyticsAnalyticsAdapter.initOptions.abPercentage;
+  }
+  if (iiqAnalyticsAnalyticsAdapter.initOptions.userPercentage !== undefined && iiqAnalyticsAnalyticsAdapter.initOptions.userPercentage !== null) {
+    result[PARAMS_NAMES.userPercentage] = iiqAnalyticsAnalyticsAdapter.initOptions.userPercentage;
   }
   prepareData(data, result);
 
