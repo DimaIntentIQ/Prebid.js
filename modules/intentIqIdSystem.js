@@ -287,13 +287,13 @@ function storeCounters(storage, partnerData) {
 
 /** @type {Submodule} */
 export const intentIqIdSubmodule = {
-    /**
+  /**
    * used to link submodule with config
    * @type {string}
    */
   name: MODULE_NAME,
   gvlid: GVLID,
-    /**
+  /**
    * decode the stored id value for passing to bid requests
    * @function
    * @param {{string}} value
@@ -303,7 +303,7 @@ export const intentIqIdSubmodule = {
     return value && INVALID_ID !== value ? { 'intentIqId': value } : undefined;
   },
 
-    /**
+  /**
    * performs action to obtain id and return a value in the callback's response argument
    * @function
    * @param {SubmoduleConfig} [config]
