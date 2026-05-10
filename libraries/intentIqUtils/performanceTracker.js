@@ -1,5 +1,5 @@
 import {
-  AAP,
+  ADDITIONAL_ANALYTIC_PARAMS as AAP,
   businessAdapters,
   emptyWarning,
   ErrorsMap,
@@ -16,169 +16,98 @@ class PerformanceTracker {
   }
 
   addPerformance(id, value) {
-    let newPerformance;
-
-    if (typeof value === 'number') {
-      newPerformance = value;
-    } else {
-      switch (id) {
-        case 0:
-          newPerformance = this.performanceStart;
-          break;
-        case 60:
-          newPerformance = performance.now();
-          break;
-        default:
-          newPerformance = performance.now() - this.performanceStart;
-          break;
-      }
-    }
+    const raw = typeof value === 'number'
+      ? value
+      : id === 0
+        ? this.performanceStart
+        : id === 60
+          ? performance.now()
+          : performance.now() - this.performanceStart;
 
     this.performanceData[id] = this.performanceData[id] || [];
-    this.performanceData[id].push(
-      parseFloat(newPerformance.toFixed(1))
-    );
+    this.performanceData[id].push(parseFloat(raw.toFixed(1)));
   }
 
   addAdditionalAnalyticParam(id, value) {
-    if (
-      id === AAP.eidsDiff ||
-      id === AAP.auctionToBidWonPercentage ||
-      id === AAP.bidWonImpressionsDiff
-    ) {
-      this.additionalAnalyticParams[id] = value;
-      return;
-    }
+    const rawIds = [
+      AAP.AUCTION_EIDS_DIFF,
+      AAP.AUCTION_TO_BIDWON_PERCENTAGE,
+      AAP.BIDWON_MINUS_IMPRESSIONS
+    ];
 
-    this.additionalAnalyticParams[id] = value ? 1 : 0;
+    this.additionalAnalyticParams[id] = rawIds.includes(id) ? value : value ? 1 : 0;
   }
 
   addWarning(id, errorType) {
-    if (ErrorsMap[errorType]?.includes(id)) {
-      this.warningData[errorType][id] =
-        (this.warningData[errorType][id] || 0) + 1;
-    }
+    if (!ErrorsMap[errorType]?.includes(id)) return;
+    this.warningData[errorType][id] = (this.warningData[errorType][id] || 0) + 1;
   }
 
-  checkWarnings(config) {
+  checkWarnings(config = []) {
     config.forEach(({ id, warningCode, errorType }) => {
-      if (this.performanceData[id]?.length > 1) {
-        this.addWarning(warningCode, errorType);
-      }
+      if (this.performanceData[id]?.length > 1) this.addWarning(warningCode, errorType);
     });
   }
 
-  filterWarningData(data, ids) {
-    const filteredData = {};
-
-    for (const id of ids) {
-      if (data[id]) {
-        filteredData[id] = data[id];
-      }
-    }
-
-    return filteredData;
-  }
-
-  updatePerformanceData(ids) {
-    if (ids.some(el => el === -1)) {
-      return Object.keys(this.performanceData).reduce((acc, key) => {
-        acc[Number(key)] = this.performanceData[Number(key)][0];
-        return acc;
-      }, {});
-    }
-
+  filterWarningData(data, ids = []) {
     return ids.reduce((acc, id) => {
-      if (this.performanceData[id]) {
-        acc[id] = this.performanceData[id][0];
-      }
+      if (data[id]) acc[id] = data[id];
       return acc;
     }, {});
   }
 
-  getFilteredData(pd, installedModules = []) {
-    let performanceData = {};
+  updatePerformanceData(ids = []) {
+    if (ids.includes(-1)) return { ...this.performanceData };
+    return ids.reduce((acc, id) => {
+      if (this.performanceData[id]) acc[id] = this.performanceData[id];
+      return acc;
+    }, {});
+  }
+
+  getFilteredData(pd, installedModules = [], force = false) {
+    this.checkWarnings(multipleErrors);
+
+    const performanceData = force ? { ...this.performanceData } : {};
     const warningData = JSON.parse(JSON.stringify(emptyWarning));
     const businessData = {};
     let additionalAnalyticData = {};
 
-    this.checkWarnings(multipleErrors);
-
-    if (pd?.p?.ct && pd?.p?.d?.length) {
-      performanceData = this.updatePerformanceData(pd.p.d);
+    if (!force && pd?.p?.ct && pd?.p?.d?.length) {
+      Object.assign(performanceData, this.updatePerformanceData(pd.p.d));
       pd.p.ct--;
     }
 
-    if (pd?.w?.ct) {
-      const keys = Object.values(ErrorType);
-
-      keys.forEach(key => {
-        const data = pd?.w?.[key];
-
-        if (
-          data &&
-          data.length &&
-          data.some(el => el === -1)
-        ) {
-          warningData[key] = this.warningData[key];
-        } else {
-          warningData[key] = this.filterWarningData(
-            this.warningData[key],
-            data || []
-          );
-        }
+    if (force) {
+      Object.assign(warningData.ed, this.warningData.ed);
+      Object.assign(warningData.ld, this.warningData.ld);
+      Object.assign(warningData.fd, this.warningData.fd);
+      additionalAnalyticData = { ...this.additionalAnalyticParams };
+    } else if (pd?.w?.ct) {
+      Object.values(ErrorType).forEach(key => {
+        const ids = pd?.w?.[key] || [];
+        warningData[key] = ids.includes(-1) ? this.warningData[key] : this.filterWarningData(this.warningData[key], ids);
       });
 
-      if (
-        Object.values(warningData).some(
-          data => Object.keys(data).length > 0
-        )
-      ) {
-        pd.w.ct--;
-      }
+      if (Object.values(warningData).some(data => Object.keys(data).length)) pd.w.ct--;
     }
 
     if (pd?.b?.ct && pd?.b?.d?.length) {
-      if (pd.b.d.some(el => el === -1)) {
-        Object.entries(businessAdapters).forEach(([key, adapter]) => {
-          const index = Number(key);
-
-          businessData[index] =
-            installedModules.includes(adapter) ? 1 : 0;
-        });
-      } else {
-        pd.b.d.forEach(el => {
-          if (businessAdapters[el]) {
-            businessData[el] =
-              installedModules.includes(
-                businessAdapters[el]
-              )
-                ? 1
-                : 0;
-          }
-        });
-      }
-
+      const ids = pd.b.d.includes(-1) ? Object.keys(businessAdapters).map(Number) : pd.b.d;
+      ids.forEach(id => {
+        if (businessAdapters[id]) businessData[id] = installedModules.includes(businessAdapters[id]) ? 1 : 0;
+      });
       pd.b.ct--;
     }
 
-    if (pd?.ad?.ct && pd?.ad?.d?.length) {
-      const addParamKeys = Object.keys(
-        this.additionalAnalyticParams
-      );
-
-      if (addParamKeys.length) {
-        if (pd.ad.d.some(item => item === -1)) {
-          additionalAnalyticData = {
-            ...this.additionalAnalyticParams
-          };
-        } else {
-          pd.ad.d.forEach(key => {
-            additionalAnalyticData[key] =
-              this.additionalAnalyticParams[key];
-          });
-        }
-
+    if (!force && pd?.ad?.ct && pd?.ad?.d?.length) {
+      const keys = Object.keys(this.additionalAnalyticParams);
+      if (keys.length) {
+        additionalAnalyticData = pd.ad.d.includes(-1)
+          ? { ...this.additionalAnalyticParams }
+          : pd.ad.d.reduce((acc, key) => {
+              acc[key] = this.additionalAnalyticParams[key];
+              return acc;
+            }, {});
         pd.ad.ct--;
       }
     }

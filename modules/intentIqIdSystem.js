@@ -13,7 +13,7 @@ import { appendSPData } from '../libraries/intentIqUtils/urlUtils.js';
 import { isCHSupported } from '../libraries/intentIqUtils/chUtils.js'
 import { appendVrrefAndFui } from '../libraries/intentIqUtils/getRefferer.js';
 import { getCmpData } from '../libraries/intentIqUtils/getCmpData.js';
-import { readData, storeData, defineStorageType, removeDataByKey, tryParse } from '../libraries/intentIqUtils/storageUtils.js';
+import { readData, storeData, defineStorageType, removeDataByKey, tryParse, storage } from '../libraries/intentIqUtils/storageUtils.js';
 import {
   FIRST_PARTY_KEY,
   CLIENT_HINTS_KEY,
@@ -28,14 +28,8 @@ import { handleAdditionalParams } from '../libraries/intentIqUtils/handleAdditio
 import { decryptData, encryptData } from '../libraries/intentIqUtils/cryptionUtils.js';
 import { defineABTestingGroup } from '../libraries/intentIqUtils/defineABTestingGroupUtils.js';
 import { performanceTracker } from '../libraries/intentIqUtils/performanceTracker.js';
-import { ErrorType } from '../libraries/intentIqConstants/performanceConstants.js';
 import { scheduleAnalyticsDetection } from '../libraries/intentIqUtils/performanceUtils.js';
-
-import {
-  PERFORMANCE_EVENT,
-  ERROR_CODES,
-  ADDITIONAL_ANALYTIC_PARAMS
-} from '../libraries/intentIqConstants/performanceConstants.js';
+import { ErrorType, PERFORMANCE_EVENT, ERROR_CODES, WARNING_CODES, ADDITIONAL_ANALYTIC_PARAMS } from '../libraries/intentIqConstants/performanceConstants.js';
 
 /**
  * @typedef {import('../modules/userId/index.js').Submodule} Submodule
@@ -65,7 +59,6 @@ let PARTNER_DATA_KEY;
 let callCount = 0;
 let failCount = 0;
 let noDataCount = 0;
-performanceTracker.addPerformance(PERFORMANCE_EVENT.INIT_COUNTERS);
 
 export let firstPartyData;
 let partnerData;
@@ -219,19 +212,21 @@ function sendSyncRequest(allowedStorage, url, partner, firstPartyData, newUser) 
  */
 export function setGamReporting(gamObjectReference, gamParameterName, userGroup, isBlacklisted = false) {
   if (isBlacklisted) return;
-  if (isPlainObject(gamObjectReference) && gamObjectReference.cmd) {
-    gamObjectReference.cmd.push(() => {
-      if (typeof gamObjectReference.setConfig === 'function') {
-        gamObjectReference.setConfig({
-          targeting: {
-            [gamParameterName]: userGroup
-          }
-        });
-        return;
-      }
-      // Fallback in case an older version of Google Publisher Tag is used.
-      gamObjectReference?.pubads?.()?.setTargeting?.(gamParameterName, userGroup);
-    });
+
+  try {
+    if (isPlainObject(gamObjectReference) && gamObjectReference.cmd) {
+      gamObjectReference.cmd.push(() => {
+        if (typeof gamObjectReference.setConfig === 'function') {
+          gamObjectReference.setConfig({ targeting: { [gamParameterName]: userGroup } });
+        } else {
+          // Fallback in case an older version of Google Publisher Tag is used.
+          gamObjectReference?.pubads?.()?.setTargeting?.(gamParameterName, userGroup);
+        }
+        performanceTracker.addPerformance(PERFORMANCE_EVENT.GAM_TARGETING_SET);
+      });
+    }
+  } catch (e) {
+    performanceTracker.addWarning(ERROR_CODES.GAM_TARGETING_FAILED, ErrorType.ERROR);
   }
 }
 
@@ -292,13 +287,13 @@ function storeCounters(storage, partnerData) {
 
 /** @type {Submodule} */
 export const intentIqIdSubmodule = {
-  /**
+    /**
    * used to link submodule with config
    * @type {string}
    */
   name: MODULE_NAME,
   gvlid: GVLID,
-  /**
+    /**
    * decode the stored id value for passing to bid requests
    * @function
    * @param {{string}} value
@@ -308,7 +303,7 @@ export const intentIqIdSubmodule = {
     return value && INVALID_ID !== value ? { 'intentIqId': value } : undefined;
   },
 
-  /**
+    /**
    * performs action to obtain id and return a value in the callback's response argument
    * @function
    * @param {SubmoduleConfig} [config]
@@ -319,6 +314,10 @@ export const intentIqIdSubmodule = {
     const configParams = (config?.params) || {};
     performanceTracker.addPerformance(PERFORMANCE_EVENT.SET_USER_CONFIG);
 
+    let decryptedData;
+    let callbackTimeoutID;
+    let callbackFired = false;
+    let runtimeEids = { eids: [] };
     let responseReceived = false;
     let requestSent = false;
 
@@ -330,6 +329,7 @@ export const intentIqIdSubmodule = {
         let data = runtimeEids;
         if (data?.eids?.length === 1 && typeof data.eids[0] === 'string') data = data.eids[0];
         performanceTracker.addPerformance(PERFORMANCE_EVENT.CALLBACK_FIRE);
+        performanceTracker.addAdditionalAnalyticParam(ADDITIONAL_ANALYTIC_PARAMS.CALLBACK_WITH_EIDS, !!runtimeEids?.eids?.length);
         configParams.callback(data);
       }
       updateGlobalObj()
@@ -337,85 +337,69 @@ export const intentIqIdSubmodule = {
 
     if (typeof configParams.partner !== 'number') {
       logError('User ID - intentIqId submodule requires a valid partner to be defined');
+      performanceTracker.addWarning(ERROR_CODES.PARTNER_ID_NOT_PROVIDED, ErrorType.FATAL);
       firePartnerCallback();
-      performanceTracker.addWarning(ERROR_CODES.PARTNER_ID_NOT_PROVIDED);
       return;
     }
 
     initializeGlobalIIQ(configParams.partner);
-    scheduleAnalyticsDetection({
-      configParams,
-      firstPartyData,
-      partnerData,
-      runtimeEids,
-      timeout: 5000
-    });
-
-    let decryptedData, callbackTimeoutID;
-    let callbackFired = false;
-    let runtimeEids = { eids: [] };
 
     const gamObjectReference = isPlainObject(configParams.gamObjectReference) ? configParams.gamObjectReference : undefined;
-    performanceTracker.addAdditionalAnalyticParam(ADDITIONAL_ANALYTIC_PARAMS.GAM_OBJECT_PRESENT, gamObjectReference ? 1 : 0);
-    const gamParameterName = configParams.gamParameterName ? configParams.gamParameterName : 'intent_iq_group';
+    performanceTracker.addAdditionalAnalyticParam(ADDITIONAL_ANALYTIC_PARAMS.GAM_OBJECT_PRESENT, !!gamObjectReference);
+    const gamParameterName = configParams.gamParameterName || 'intent_iq_group';
     const groupChanged = typeof configParams.groupChanged === 'function' ? configParams.groupChanged : undefined;
     const siloEnabled = typeof configParams.siloEnabled === 'boolean' ? configParams.siloEnabled : false;
     sourceMetaData = isStr(configParams.sourceMetaData) ? translateMetadata(configParams.sourceMetaData) : '';
     sourceMetaDataExternal = isNumber(configParams.sourceMetaDataExternal) ? configParams.sourceMetaDataExternal : undefined;
-    const additionalParams = configParams.additionalParams ? configParams.additionalParams : undefined;
+    const additionalParams = configParams.additionalParams || undefined;
     const chTimeout = Number(configParams?.chTimeout) >= 0 ? Number(configParams.chTimeout) : 10;
     PARTNER_DATA_KEY = `${FIRST_PARTY_KEY}_${configParams.partner}`;
     performanceTracker.addPerformance(PERFORMANCE_EVENT.SET_DEFAULT_VALUES);
 
     const allowedStorage = defineStorageType(config.enabledStorageTypes);
     performanceTracker.addPerformance(PERFORMANCE_EVENT.INIT_STORAGE);
-
-    try {
-      performanceTracker.addAdditionalAnalyticParam(
-        ADDITIONAL_ANALYTIC_PARAMS.HAVE_LS_ACCESS,
-        !!window.localStorage ? 1 : 0
-      );
-    } catch (e) {
-      performanceTracker.addAdditionalAnalyticParam(
-        ADDITIONAL_ANALYTIC_PARAMS.HAVE_LS_ACCESS,
-        0
-      );
-    }
+    performanceTracker.addAdditionalAnalyticParam(
+      ADDITIONAL_ANALYTIC_PARAMS.LS_ACCESS,
+      storage.hasLocalStorage() && allowedStorage.includes('html5')
+    );
 
     partnerData = tryParse(readData(PARTNER_DATA_KEY, allowedStorage)) || {};
     performanceTracker.addPerformance(PERFORMANCE_EVENT.READ_PARTNER_DATA_FROM_LS);
-    if (partnerData?.date) {
-      performanceTracker.addPerformance(PERFORMANCE_EVENT.TIME_SINCE_LAST_VR_REQUEST, Date.now() - partnerData.date);
-    }
+    if (partnerData?.date) performanceTracker.addPerformance(PERFORMANCE_EVENT.TIME_SINCE_LAST_VR_REQUEST, Date.now() - partnerData.date);
 
     let rrttStrtTime = 0;
     let shouldCallServer = false;
     FIRST_PARTY_KEY_FINAL = `${FIRST_PARTY_KEY}${siloEnabled ? '_p_' + configParams.partner : ''}`;
-    const cmpData = getCmpData();
     performanceTracker.addPerformance(PERFORMANCE_EVENT.READ_TCF);
+    const cmpData = getCmpData();
     performanceTracker.addPerformance(PERFORMANCE_EVENT.RECEIVED_TCF);
     if (cmpData.gdprString) performanceTracker.addPerformance(PERFORMANCE_EVENT.PROVIDED_GDPR);
     if (cmpData.uspString) performanceTracker.addPerformance(PERFORMANCE_EVENT.PROVIDED_USP);
+    performanceTracker.addAdditionalAnalyticParam(ADDITIONAL_ANALYTIC_PARAMS.GDPR_APPLIES, !!cmpData.gdprApplies);
+    performanceTracker.addAdditionalAnalyticParam(ADDITIONAL_ANALYTIC_PARAMS.USP_APPLIES, !!cmpData.uspString);
+    performanceTracker.addAdditionalAnalyticParam(ADDITIONAL_ANALYTIC_PARAMS.GPP_APPLIES, !!cmpData.gppString);
+
     const gdprDetected = cmpData.gdprString;
+
     firstPartyData = tryParse(readData(FIRST_PARTY_KEY_FINAL, allowedStorage));
     performanceTracker.addPerformance(PERFORMANCE_EVENT.READ_FIRST_PARTY_DATA);
     actualABGroup = defineABTestingGroup(configParams, partnerData?.terminationCause);
     performanceTracker.addPerformance(PERFORMANCE_EVENT.GROUP_DEFINING);
     const currentBrowserLowerCase = detectBrowser();
     performanceTracker.addPerformance(PERFORMANCE_EVENT.BROWSER_DETECTED);
+    performanceTracker.addPerformance(PERFORMANCE_EVENT.GET_DEVICE_INFO);
     const browserBlackList = typeof configParams.browserBlackList === 'string' ? configParams.browserBlackList.toLowerCase() : '';
     const isBlacklisted = browserBlackList?.includes(currentBrowserLowerCase);
     let newUser = false;
 
     setGamReporting(gamObjectReference, gamParameterName, actualABGroup, isBlacklisted);
-
     if (groupChanged) groupChanged(actualABGroup, partnerData?.terminationCause);
-
+    
     callbackTimeoutID = setTimeout(() => {
-      performanceTracker.addWarning(ERROR_CODES.VR_REQUEST_TIMEOUT, ErrorType.ERROR);
+      performanceTracker.addPerformance(PERFORMANCE_EVENT.VR_CALLBACK_TIMEOUT);
+      performanceTracker.addWarning(WARNING_CODES.CALLBACK_TIMEOUT_REACHED, ErrorType.WARNING);
       firePartnerCallback();
-    }, configParams.timeoutInMillis || 500
-    );
+    }, configParams.timeoutInMillis || 500);
 
     if (!firstPartyData?.pcid) {
       const firstPartyId = generateGUID();
@@ -431,23 +415,28 @@ export const intentIqIdSubmodule = {
       performanceTracker.addPerformance(PERFORMANCE_EVENT.DEFINE_FIRST_PARTY_DATA);
       newUser = true;
       storeData(FIRST_PARTY_KEY_FINAL, JSON.stringify(firstPartyData), allowedStorage, firstPartyData);
+      performanceTracker.addPerformance(PERFORMANCE_EVENT.STORE_FIRST_PARTY_DATA);
     } else if (!firstPartyData.pcidDate) {
       firstPartyData.pcidDate = Date.now();
       storeData(FIRST_PARTY_KEY_FINAL, JSON.stringify(firstPartyData), allowedStorage, firstPartyData);
+      performanceTracker.addPerformance(PERFORMANCE_EVENT.STORE_FIRST_PARTY_DATA);
     }
 
     if (gdprDetected && !('isOptedOut' in firstPartyData)) {
       firstPartyData.isOptedOut = true;
     }
+    performanceTracker.addAdditionalAnalyticParam(ADDITIONAL_ANALYTIC_PARAMS.USER_OPTED_OUT, !!firstPartyData.isOptedOut);
 
     // Read client hints from storage
     clientHints = readData(CLIENT_HINTS_KEY, allowedStorage);
     performanceTracker.addPerformance(PERFORMANCE_EVENT.READ_CLIENT_HINTS_FROM_LS);
     const chSupported = isCHSupported();
+    performanceTracker.addAdditionalAnalyticParam(ADDITIONAL_ANALYTIC_PARAMS.CH_SUPPORTED, !!chSupported);
     let chPromise = null;
 
     function fetchAndHandleCH() {
       performanceTracker.addPerformance(PERFORMANCE_EVENT.START_GET_CLIENT_HINTS);
+
       return navigator.userAgentData.getHighEntropyValues(CH_KEYS)
         .then(raw => {
           performanceTracker.addPerformance(PERFORMANCE_EVENT.RECEIVED_CLIENT_HINTS);
@@ -461,6 +450,8 @@ export const intentIqIdSubmodule = {
         })
         .catch(err => {
           logError('CH fetch failed', err);
+          performanceTracker.addPerformance(PERFORMANCE_EVENT.CH_FETCH_FAILED);
+          performanceTracker.addWarning(ERROR_CODES.CH_FETCH_FAILED, ErrorType.ERROR);
           if (clientHints !== '') {
             clientHints = '';
             removeDataByKey(CLIENT_HINTS_KEY, allowedStorage)
@@ -487,9 +478,11 @@ export const intentIqIdSubmodule = {
     if (typeof partnerData.callCount === 'number') callCount = partnerData.callCount;
     if (typeof partnerData.failCount === 'number') failCount = partnerData.failCount;
     if (typeof partnerData.noDataCounter === 'number') noDataCount = partnerData.noDataCounter;
+    performanceTracker.addPerformance(PERFORMANCE_EVENT.INIT_COUNTERS);
     if (partnerData.wsrvcll) {
       partnerData.wsrvcll = false;
       storeData(PARTNER_DATA_KEY, JSON.stringify(partnerData), allowedStorage, firstPartyData);
+      performanceTracker.addPerformance(PERFORMANCE_EVENT.STORE_PARTNER_DATA);
     }
 
     if (partnerData.data) {
@@ -521,12 +514,15 @@ export const intentIqIdSubmodule = {
       shouldCallServer = true;
       storeData(FIRST_PARTY_KEY_FINAL, JSON.stringify(firstPartyData), allowedStorage, firstPartyData);
       storeData(PARTNER_DATA_KEY, JSON.stringify(partnerData), allowedStorage, firstPartyData);
+      performanceTracker.addPerformance(PERFORMANCE_EVENT.STORE_FIRST_PARTY_DATA);
+      performanceTracker.addPerformance(PERFORMANCE_EVENT.STORE_PARTNER_DATA);
     }
     if (!shouldCallServer) {
       if (!hasPartnerData && !firstPartyData.isOptedOut) {
         shouldCallServer = true;
       } else shouldCallServer = Date.now() > firstPartyData.sCal + HOURS_72;
     }
+    performanceTracker.addAdditionalAnalyticParam(ADDITIONAL_ANALYTIC_PARAMS.SERVER_CALLED, !!shouldCallServer);
 
     if (firstPartyData.isOptedOut) {
       partnerData.data = runtimeEids = { eids: [] };
@@ -538,7 +534,9 @@ export const intentIqIdSubmodule = {
     }
 
     function buildAndSendPixel(ch) {
+      performanceTracker.addPerformance(PERFORMANCE_EVENT.BUILD_SYNC_PIXEL_URL);
       const url = createPixelUrl(firstPartyData, ch, configParams, partnerData, cmpData);
+      performanceTracker.addPerformance(PERFORMANCE_EVENT.SEND_SYNC_REQUEST);
       sendSyncRequest(allowedStorage, url, configParams.partner, firstPartyData, newUser);
     }
 
@@ -562,6 +560,8 @@ export const intentIqIdSubmodule = {
     }
 
     if (!shouldCallServer) {
+      performanceTracker.addPerformance(PERFORMANCE_EVENT.VR_REQUEST_SKIPPED);
+      performanceTracker.addWarning(WARNING_CODES.VR_SKIPPED, ErrorType.WARNING);
       firePartnerCallback();
       updateCountersAndStore(runtimeEids, allowedStorage, partnerData);
       return { id: runtimeEids.eids };
@@ -574,6 +574,7 @@ export const intentIqIdSubmodule = {
     let url = `${getIiqServerAddress(configParams)}/profiles_engine/ProfilesEngineServlet?at=39&mi=10&dpi=${configParams.partner}&pt=17&dpn=1`;
     url += configParams.pai ? '&pai=' + encodeURIComponent(configParams.pai) : '';
     url = appendFirstPartyData(url, firstPartyData, partnerData);
+    url = appendPartnersFirstParty(url, configParams);
     url = appendPartnersFirstParty(url, configParams);
     url += (partnerData.cttl) ? '&cttl=' + encodeURIComponent(partnerData.cttl) : '';
     url += (partnerData.rrtt) ? '&rrtt=' + encodeURIComponent(partnerData.rrtt) : '';
@@ -596,21 +597,20 @@ export const intentIqIdSubmodule = {
       partnerData.eidl = runtimeEids?.eids?.length || -1
       storeData(FIRST_PARTY_KEY_FINAL, JSON.stringify(firstPartyData), allowedStorage, firstPartyData);
       storeData(PARTNER_DATA_KEY, JSON.stringify(partnerData), allowedStorage, firstPartyData);
+      performanceTracker.addPerformance(PERFORMANCE_EVENT.STORE_FIRST_PARTY_DATA);
+      performanceTracker.addPerformance(PERFORMANCE_EVENT.STORE_PARTNER_DATA);
     }
 
     const resp = function (callback) {
       const callbacks = {
         success: response => {
-          if (responseReceived) {
-            performanceTracker.addWarning(ERROR_CODES.MULTIPLE_VR_RESPONSES, ErrorType.ERROR);
-          }
+          if (responseReceived) performanceTracker.addWarning(ERROR_CODES.MULTIPLE_VR_RESPONSES, ErrorType.ERROR);
           responseReceived = true;
           performanceTracker.addPerformance(PERFORMANCE_EVENT.VR_RESPONSE_RECEIVED);
 
           if (rrttStrtTime && rrttStrtTime > 0) {
             partnerData.rrtt = Date.now() - rrttStrtTime;
-            performanceTracker.addPerformance(
-              PERFORMANCE_EVENT.TIMEOUT_VS_VR_RESPONSE, partnerData.rrtt);
+            performanceTracker.addPerformance(PERFORMANCE_EVENT.TIMEOUT_VS_VR_RESPONSE, partnerData.rrtt);
           }
           const respJson = tryParse(response);
           // If response is a valid json and should save is true
@@ -637,7 +637,7 @@ export const intentIqIdSubmodule = {
               if (groupChanged) groupChanged(actualABGroup, partnerData?.terminationCause);
             }
             if ('isOptedOut' in respJson) {
-              if (respJson.isOptedOut !== firstPartyData.isOptedOut) {
+               if (respJson.isOptedOut !== firstPartyData.isOptedOut) {
                 firstPartyData.isOptedOut = respJson.isOptedOut;
               }
               if (respJson.isOptedOut === true) {
@@ -651,6 +651,7 @@ export const intentIqIdSubmodule = {
                 keysToRemove.forEach(key => removeDataByKey(key, allowedStorage));
 
                 storeData(FIRST_PARTY_KEY_FINAL, JSON.stringify(firstPartyData), allowedStorage, firstPartyData);
+                performanceTracker.addPerformance(PERFORMANCE_EVENT.STORE_FIRST_PARTY_DATA);
                 firePartnerCallback();
                 callback(runtimeEids);
                 return
@@ -704,9 +705,12 @@ export const intentIqIdSubmodule = {
             } else {
               delete partnerData.gpr // remove prediction flag in case server doesn't provide it
             }
+            performanceTracker.addAdditionalAnalyticParam(ADDITIONAL_ANALYTIC_PARAMS.RESPONSE_HAD_EIDS, !!respJson.data?.eids);
+            performanceTracker.addAdditionalAnalyticParam(ADDITIONAL_ANALYTIC_PARAMS.RESPONSE_HAD_PID, !!respJson.pid);
 
             if (respJson.data?.eids) {
               runtimeEids = respJson.data
+              performanceTracker.addPerformance(PERFORMANCE_EVENT.EIDS_FOUND_IN_RESPONSE);
               callback(respJson.data.eids);
               firePartnerCallback()
               const encryptedData = encryptData(JSON.stringify(respJson.data));
@@ -717,6 +721,7 @@ export const intentIqIdSubmodule = {
             }
             updateCountersAndStore(runtimeEids, allowedStorage, partnerData);
             storeFirstPartyData();
+            performanceTracker.addPerformance(PERFORMANCE_EVENT.VR_RESPONSE_FINISHED);
           } else {
             performanceTracker.addWarning(ERROR_CODES.VR_BAD_RESPONSE, ErrorType.ERROR);
             callback(runtimeEids);
@@ -732,12 +737,12 @@ export const intentIqIdSubmodule = {
         }
       };
 
-      if (requestSent)  performanceTracker.addWarning(ERROR_CODES.MULTIPLE_VR_REQUESTS, ErrorType.ERROR);
+      if (requestSent) performanceTracker.addWarning(ERROR_CODES.MULTIPLE_VR_REQUESTS, ErrorType.ERROR);
       requestSent = true;
       partnerData.wsrvcll = true;
       storeData(PARTNER_DATA_KEY, JSON.stringify(partnerData), allowedStorage, firstPartyData);
+      performanceTracker.addPerformance(PERFORMANCE_EVENT.STORE_PARTNER_DATA);
       clearCountersAndStore(allowedStorage, partnerData);
-
       rrttStrtTime = Date.now();
 
       const sendAjax = uh => {
@@ -762,8 +767,8 @@ export const intentIqIdSubmodule = {
         sendAjax('');
       }
     };
+    scheduleAnalyticsDetection({ configParams, firstPartyData, partnerData, runtimeEids, timeout: 5000 });
     const respObj = { callback: resp };
-
     if (runtimeEids?.eids?.length) respObj.id = runtimeEids.eids;
     return respObj
   },

@@ -2,55 +2,38 @@ export const PERFORMANCE_EVENT = {
   SET_IIQ_OBJECT: 1,
   SET_USER_CONFIG: 2,
   BROWSER_BLACKLIST_DETECTED: 3,
-
   SET_DEFAULT_VALUES: 6,
   INIT_COUNTERS: 7,
   INIT_STORAGE: 8,
-
   READ_FIRST_PARTY_DATA: 11,
   GENERATED_NEW_PCID: 12,
   DEFINE_FIRST_PARTY_DATA: 13,
   READ_CLIENT_HINTS_FROM_LS: 14,
-
   READ_TCF: 16,
   RECEIVED_TCF: 17,
-
   CREATE_REQUEST_URL: 20,
   MAKE_VR_REQUEST: 21,
-
   READ_USP_START: 25,
   READ_USP_END: 26,
-
   START_GET_CLIENT_HINTS: 27,
   RECEIVED_CLIENT_HINTS: 28,
-
   GROUP_DEFINING: 29,
-
   VR_RESPONSE_RECEIVED: 38,
   CALLBACK_FIRE: 39,
   READ_PARTNER_DATA_FROM_LS: 40,
-
   REFRESH_USER_IDS_START: 41,
   USER_IDS_SET_IN_PREBID: 42,
-
   BROWSER_DETECTED: 43,
-
   DEFINE_GROUP_FROM_SERVER: 45,
-
   START_READ_LS_ENCODED_DATA: 46,
   END_READ_LS_ENCODED_DATA: 47,
-
   GET_DEVICE_INFO: 48,
   SYNC_REQUEST: 49,
-
   PROVIDED_GDPR: 51,
   PROVIDED_USP: 53,
-
   TIMEOUT_VS_VR_RESPONSE: 56,
   TIME_SINCE_LAST_VR_REQUEST: 57,
-
   ANALYTICS_ADAPTER_DETECTED: 61,
-
   VR_RESPONSE_FINISHED: 62,
   DEFINE_GROUP_BASED_ON_SERVER_RESPONSE: 63,
   GAM_TARGETING_SET: 64,
@@ -75,19 +58,14 @@ export const PERFORMANCE_EVENT = {
 
 export const ERROR_CODES = {
   ALL: -1,
-
   VR_BAD_RESPONSE: 0,
   VR_REQUEST_TIMEOUT: 1,
-
   MULTIPLE_VR_REQUESTS: 6,
   MULTIPLE_VR_RESPONSES: 7,
   CALLBACK_TRIGGERED_FEW_TIMES: 8,
-
   CONFIG_OBJECT_INVALID: 9,
   PARTNER_ID_NOT_PROVIDED: 10,
-
   ANALYTICS_ADAPTER_MISSING: 11,
-
   CONFIG_OBJECT_NOT_PROVIDED_CORRECTLY: 12,
   CH_FETCH_FAILED: 13,
   GAM_TARGETING_FAILED: 14,
@@ -103,12 +81,10 @@ export const ERROR_CODES = {
 
 export const WARNING_CODES = {
   ALL: -1,
-
   CMP_TRIGGERED_FEW_TIMES: 0,
   MULTIPLE_AGENTS_SAME_ID: 1,
   AUCTION_EIDS_DISCREPANCY: 2,
   AUCTION_STARTED_BEFORE_AGENT: 3,
-
   CALLBACK_TIMEOUT_REACHED: 4,
   EMPTY_EIDS_RESPONSE: 5,
   USING_LS_EIDS: 6,
@@ -118,16 +94,13 @@ export const WARNING_CODES = {
 
 export const ADDITIONAL_ANALYTIC_PARAMS = {
   ALL: -1,
-
   RUNNING_IN_TOP: 0,
   LS_ACCESS: 1,
   GAM_PRESENT: 2,
   HAVE_EIDS_IN_LS: 3,
-
   AUCTION_EIDS_DIFF: 4,
   AUCTION_TO_BIDWON_PERCENTAGE: 5,
   BIDWON_MINUS_IMPRESSIONS: 6,
-
   CALLBACK_WITH_EIDS: 7,
   CH_SUPPORTED: 8,
   GDPR_APPLIES: 9,
@@ -146,4 +119,48 @@ export const ErrorType = {
   ERROR: 'ed',
   WARNING: 'ld',
   FATAL: 'fd'
+};
+
+export const emptyWarning = {
+  [ErrorType.ERROR]: {},
+  [ErrorType.WARNING]: {},
+  [ErrorType.FATAL]: {}
+};
+
+export const edErrors = Object.values(ERROR_CODES).filter(id => id !== ERROR_CODES.ALL);
+export const ldErrors = Object.values(WARNING_CODES).filter(id => id !== WARNING_CODES.ALL);
+export const fdErrors = edErrors;
+
+export const ErrorsMap = {
+  [ErrorType.ERROR]: edErrors,
+  [ErrorType.WARNING]: ldErrors,
+  [ErrorType.FATAL]: fdErrors
+};
+
+export const multipleErrors = [
+  {
+    id: PERFORMANCE_EVENT.MAKE_VR_REQUEST,
+    warningCode: ERROR_CODES.MULTIPLE_VR_REQUESTS,
+    errorType: ErrorType.ERROR
+  },
+  {
+    id: PERFORMANCE_EVENT.VR_RESPONSE_RECEIVED,
+    warningCode: ERROR_CODES.MULTIPLE_VR_RESPONSES,
+    errorType: ErrorType.ERROR
+  },
+  {
+    id: PERFORMANCE_EVENT.CALLBACK_FIRE,
+    warningCode: ERROR_CODES.CALLBACK_TRIGGERED_FEW_TIMES,
+    errorType: ErrorType.ERROR
+  }
+];
+
+export const businessAdapters = {
+  0: 'liveIntentAnalyticsAdapter',
+  1: 'euidIdSystem',
+  2: 'id5AnalyticsAdapter',
+  3: 'lotamePanoramaIdSystem',
+  4: 'identityLinkIdSystem',
+  5: 'merkleIdSystem',
+  6: 'fabrickIdSystem'
 };
