@@ -473,7 +473,9 @@ function constructFullUrl(data) {
         encodeURIComponent(iiqAnalyticsAnalyticsAdapter.initOptions.clientHints) +
         (isValidValue(cmpData.uspString) ? '&us_privacy=' + encodeURIComponent(cmpData.uspString) : '') +
         (isValidValue(cmpData.gppString) ? '&gpp=' + encodeURIComponent(cmpData.gppString) : '') +
-        (isValidValue(cmpData.gdprString) ? '&gdpr_consent=' + encodeURIComponent(cmpData.gdprString) + '&gdpr=1' : '&gdpr=0');
+        (isValidValue(cmpData.gdprString)
+          ? '&gdpr_consent=' + encodeURIComponent(cmpData.gdprString) + '&gdpr=1' + (cmpData.tcfVersion ? '&tcfv=' + encodeURIComponent(cmpData.tcfVersion) : '')
+          : '&gdpr=0');
 
   url = appendSPData(url, partnerData);
   url = appendVrrefAndFui(url, iiqAnalyticsAnalyticsAdapter.initOptions.domainName);

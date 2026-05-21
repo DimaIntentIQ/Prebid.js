@@ -117,6 +117,7 @@ function appendCMPData(url, cmpData) {
   if (cmpData.gdprApplies) {
     url += isValidValue(cmpData.gdprString) ? '&gdpr_consent=' + encodeURIComponent(cmpData.gdprString) : '';
     url += '&gdpr=1';
+    if (cmpData.tcfVersion) url += '&tcfv=' + encodeURIComponent(cmpData.tcfVersion);
   } else {
     url += '&gdpr=0';
   }
@@ -376,7 +377,7 @@ export const intentIqIdSubmodule = {
 
     if (!firstPartyData?.pcid) {
       const firstPartyId = generateGUID();
-      firstPartyData = {
+      const newObj = {
         pcid: firstPartyId,
         pcidDate: Date.now(),
         uspString: EMPTY,
@@ -384,6 +385,10 @@ export const intentIqIdSubmodule = {
         gdprString: EMPTY,
         date: Date.now()
       };
+      // Preserve existing FPD (gdprString, isOptedOut, sCal, ...) when present —
+      // when opted out, pcid/pcidDate are not persisted to device, so the runtime
+      // value is regenerated each session without overwriting persisted fields.
+      firstPartyData = firstPartyData ? { ...firstPartyData, ...newObj } : newObj;
       newUser = true;
       storeData(FIRST_PARTY_KEY_FINAL, JSON.stringify(firstPartyData), allowedStorage, firstPartyData);
     } else if (!firstPartyData.pcidDate) {
@@ -463,9 +468,15 @@ export const intentIqIdSubmodule = {
     }
 
     let hasPartnerData = !!Object.keys(partnerData).length;
-    if (!isCMPStringTheSame(firstPartyData, cmpData) ||
+
+    // CMP has data only when at least one consent string is non-null.
+    // When all are null the CMP hasn't responded yet (page-reload race condition) —
+    // skip the comparison so we don't force a server call every reload.
+    const cmpHasData = cmpData.gdprString !== null || cmpData.gppString !== null || cmpData.uspString !== null;
+
+    if ((!isCMPStringTheSame(firstPartyData, cmpData) && cmpHasData) ||
       !firstPartyData.sCal ||
-      (hasPartnerData && (!partnerData.cttl || !partnerData.date || Date.now() - partnerData.date > partnerData.cttl))) {
+      (hasPartnerData && !firstPartyData.isOptedOut && (!partnerData.cttl || !partnerData.date || Date.now() - partnerData.date > partnerData.cttl))) {
       firstPartyData.uspString = cmpData.uspString;
       firstPartyData.gppString = cmpData.gppString;
       firstPartyData.gdprString = cmpData.gdprString;
@@ -586,14 +597,16 @@ export const intentIqIdSubmodule = {
               if (respJson.isOptedOut === true) {
                 respJson.data = partnerData.data = runtimeEids = { eids: [] };
 
-                const keysToRemove = [
-                  PARTNER_DATA_KEY,
-                  CLIENT_HINTS_KEY
-                ];
+                // Remove client hints entirely; partner data is rewritten below with
+                // only terminationCause persisted (handled by storeData when opted out).
+                removeDataByKey(CLIENT_HINTS_KEY, allowedStorage);
 
-                keysToRemove.forEach(key => removeDataByKey(key, allowedStorage));
+                if ('tc' in respJson) {
+                  partnerData.terminationCause = respJson.tc;
+                }
 
                 storeData(FIRST_PARTY_KEY_FINAL, JSON.stringify(firstPartyData), allowedStorage, firstPartyData);
+                storeData(PARTNER_DATA_KEY, JSON.stringify(partnerData), allowedStorage, firstPartyData);
                 firePartnerCallback();
                 callback(runtimeEids);
                 return
