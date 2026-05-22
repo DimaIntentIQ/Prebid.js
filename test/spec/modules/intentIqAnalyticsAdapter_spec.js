@@ -457,7 +457,7 @@ describe("IntentIQ tests all", function () {
   it("should include tcfv (TCF API version) in report when TCF CMP is detected", function () {
     const uspData = "1NYN";
     const gppData = { gppString: '{"k":"v"}' };
-    const gdprData = { consentString: "gdprConsent", apiVersion: 2 };
+    const gdprData = { consentString: "gdprConsent", apiVersion: 2, gdprApplies: true };
 
     const gppStub = sinon.stub(gppDataHandler, "getConsentData").returns(gppData);
     const uspStub = sinon.stub(uspDataHandler, "getConsentData").returns(uspData);

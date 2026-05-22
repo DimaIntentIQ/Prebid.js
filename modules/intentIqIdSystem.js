@@ -17,7 +17,6 @@ import { readData, storeData, defineStorageType, removeDataByKey, tryParse } fro
 import {
   FIRST_PARTY_KEY,
   CLIENT_HINTS_KEY,
-  EMPTY,
   GVLID,
   VERSION, INVALID_ID, SYNC_REFRESH_MILL, META_DATA_CONSTANT, PREBID,
   HOURS_72, CH_KEYS, DEFAULT_PERCENTAGE, WITH_IIQ
@@ -117,7 +116,7 @@ function appendCMPData(url, cmpData) {
   if (cmpData.gdprApplies) {
     url += isValidValue(cmpData.gdprString) ? '&gdpr_consent=' + encodeURIComponent(cmpData.gdprString) : '';
     url += '&gdpr=1';
-    if (cmpData.tcfVersion) url += '&tcfv=' + encodeURIComponent(cmpData.tcfVersion);
+    url += isValidValue(cmpData.tcfApiVersion) ? '&tcfv=' + encodeURIComponent(cmpData.tcfApiVersion) : '';
   } else {
     url += '&gdpr=0';
   }
@@ -380,9 +379,6 @@ export const intentIqIdSubmodule = {
       const newObj = {
         pcid: firstPartyId,
         pcidDate: Date.now(),
-        uspString: EMPTY,
-        gppString: EMPTY,
-        gdprString: EMPTY,
         date: Date.now()
       };
       // Preserve existing FPD (gdprString, isOptedOut, sCal, ...) when present —
@@ -467,16 +463,12 @@ export const intentIqIdSubmodule = {
       }
     }
 
-    let hasPartnerData = !!Object.keys(partnerData).length;
+    const pdLength = !!Object.keys(partnerData).length
+    const hasPartnerData = pdLength && pdLength > 1; // in OptOut case we keep one property inside
 
-    // CMP has data only when at least one consent string is non-null.
-    // When all are null the CMP hasn't responded yet (page-reload race condition) —
-    // skip the comparison so we don't force a server call every reload.
-    const cmpHasData = cmpData.gdprString !== null || cmpData.gppString !== null || cmpData.uspString !== null;
-
-    if ((!isCMPStringTheSame(firstPartyData, cmpData) && cmpHasData) ||
+    if ((!isCMPStringTheSame(firstPartyData, cmpData)) ||
       !firstPartyData.sCal ||
-      (hasPartnerData && !firstPartyData.isOptedOut && (!partnerData.cttl || !partnerData.date || Date.now() - partnerData.date > partnerData.cttl))) {
+      (hasPartnerData && (!partnerData.cttl || !partnerData.date || Date.now() - partnerData.date > partnerData.cttl))) {
       firstPartyData.uspString = cmpData.uspString;
       firstPartyData.gppString = cmpData.gppString;
       firstPartyData.gdprString = cmpData.gdprString;

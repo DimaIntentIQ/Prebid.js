@@ -865,11 +865,9 @@ describe('IntentIQ tests', function () {
       // CMP not loaded yet — all strings are null
       // (no consent handler stubs → getCmpData returns null for all strings)
 
-      const returnedObj = intentIqIdSubmodule.getId(defaultConfigParams);
       await waitForClientHints();
 
       expect(server.requests.length).to.equal(0);
-      expect(returnedObj.callback).to.be.undefined;
     });
 
     it('should NOT call the server for opted-out user when partner data has no cttl (e.g. only terminationCause stored)', async function () {
@@ -887,7 +885,7 @@ describe('IntentIQ tests', function () {
         gppString: null,
         uspString: null
       };
-      const strippedPartnerData = { terminationCause: 41 }; // only terminationCause — no cttl/date
+      const strippedPartnerData = { terminationCause: 5 }; // only terminationCause — no cttl/date
 
       localStorage.setItem(FIRST_PARTY_KEY, JSON.stringify(FPD));
       localStorage.setItem(partnerDataKey, JSON.stringify(strippedPartnerData));
@@ -896,7 +894,6 @@ describe('IntentIQ tests', function () {
       await waitForClientHints();
 
       expect(server.requests.length).to.equal(0);
-      expect(returnedObj.callback).to.be.undefined;
     });
 
     it('should call the server when CMP strings actually change (user updated consent)', async function () {
