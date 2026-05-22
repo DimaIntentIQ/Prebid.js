@@ -57,7 +57,7 @@ export function storeData(key, value, allowedStorage, firstPartyData) {
       // - Partner data (_iiq_fdata_<partnerId>): persist only terminationCause.
       // - Anything else: do not persist.
       if (key === FIRST_PARTY_KEY) {
-        const parsed = typeof value === 'string' ? safeParse(value) : (value && typeof value === 'object' ? { ...value } : null);
+        const parsed = typeof value === 'string' ? tryParse(value) : (value && typeof value === 'object' ? { ...value } : null);
         if (parsed) {
           delete parsed.pcid;
           delete parsed.pcidDate;
@@ -66,7 +66,7 @@ export function storeData(key, value, allowedStorage, firstPartyData) {
           value = JSON.stringify(parsed);
         }
       } else if (isPartnerDataKey(key)) {
-        const parsed = typeof value === 'string' ? safeParse(value) : (value && typeof value === 'object' ? value : null);
+        const parsed = typeof value === 'string' ? tryParse(value) : (value && typeof value === 'object' ? value : null);
         value = JSON.stringify({ terminationCause: parsed ? parsed.terminationCause : undefined });
       } else {
         return;
@@ -84,14 +84,6 @@ export function storeData(key, value, allowedStorage, firstPartyData) {
     }
   } catch (error) {
     logError(error);
-  }
-}
-
-function safeParse(value) {
-  try {
-    return JSON.parse(value);
-  } catch (e) {
-    return null;
   }
 }
 

@@ -593,10 +593,6 @@ export const intentIqIdSubmodule = {
                 // only terminationCause persisted (handled by storeData when opted out).
                 removeDataByKey(CLIENT_HINTS_KEY, allowedStorage);
 
-                if ('tc' in respJson) {
-                  partnerData.terminationCause = respJson.tc;
-                }
-
                 storeData(FIRST_PARTY_KEY_FINAL, JSON.stringify(firstPartyData), allowedStorage, firstPartyData);
                 storeData(PARTNER_DATA_KEY, JSON.stringify(partnerData), allowedStorage, firstPartyData);
                 firePartnerCallback();
