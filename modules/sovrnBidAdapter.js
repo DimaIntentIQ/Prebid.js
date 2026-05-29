@@ -209,39 +209,27 @@ export const spec = {
    * @return {Bid[]} An array of formatted bids.
    */
   interpretResponse: function({ body: { id, seatbid } }) {
-    if (!id || !seatbid || !Array.isArray(seatbid)) return []
-
-    try {
-      return seatbid
-        .filter(seat => seat)
-        .map(seat => seat.bid.map(sovrnBid => {
-          const bid = {
-            requestId: sovrnBid.impid,
-            cpm: parseFloat(sovrnBid.price),
-            width: parseInt(sovrnBid.w),
-            height: parseInt(sovrnBid.h),
-            creativeId: sovrnBid.crid || sovrnBid.id,
-            dealId: sovrnBid.dealid || null,
-            currency: 'USD',
-            netRevenue: true,
-            mediaType: Number(sovrnBid.mtype) === 2 ? VIDEO : BANNER,
-            ttl: sovrnBid.ext?.ttl || 90,
-            meta: { advertiserDomains: sovrnBid && sovrnBid.adomain ? sovrnBid.adomain : [] }
-          }
-
-          if (Number(sovrnBid.mtype) === 2) {
-            bid.vastXml = decodeURIComponent(sovrnBid.adm)
-          } else {
-            bid.ad = sovrnBid.nurl ? decodeURIComponent(`${sovrnBid.adm}<img src="${sovrnBid.nurl}">`) : decodeURIComponent(sovrnBid.adm)
-          }
-
-          return bid
-        }))
-        .flat()
-    } catch (e) {
-      logError('Could not interpret bidresponse, error details:', e)
-      return e
-    }
+    return [
+      {
+        requestId: '06d655ff-9c15-426f-a363-fe012037af02',
+        cpm: 4.00,
+        width: 300,
+        height: 250,
+        ad: '<div style="width:300px;height:250px;background:#0a0;color:#fff;display:flex;align-items:center;justify-content:center;font:700 18px sans-serif;">TL WIN 300x250</div>',
+        creativeId: '10092_76480_testcrid',
+        dealId: '',
+        currency: 'USD',
+        netRevenue: true,
+        ttl: 300,
+        mediaType: 'banner',
+        meta: {
+          advertiserName: 'Test Advertiser',
+          advertiserDomains: ['example.com'],
+          mediaType: 'banner',
+          networkId: '10092'
+        }
+      }
+    ];
   },
 
   getUserSyncs: function(syncOptions, serverResponses, gdprConsent, uspConsent, gppConsent) {

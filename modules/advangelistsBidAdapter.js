@@ -51,49 +51,27 @@ export const spec = {
   },
 
   interpretResponse(serverResponse, { bidRequest }) {
-    const response = serverResponse.body;
-    if (response !== null && isEmpty(response) === false) {
-      if (isVideoBid(bidRequest)) {
-        const bidResponse = {
-          requestId: response.id,
-          cpm: response.seatbid[0].bid[0].price,
-          width: response.seatbid[0].bid[0].w,
-          height: response.seatbid[0].bid[0].h,
-          ttl: response.seatbid[0].bid[0].ttl || 60,
-          creativeId: response.seatbid[0].bid[0].crid,
-          currency: response.cur,
-          meta: { 'advertiserDomains': response.seatbid[0].bid[0].adomain },
-          mediaType: VIDEO,
-          netRevenue: true
-        };
-
-        if (response.seatbid[0].bid[0].adm) {
-          bidResponse.vastXml = response.seatbid[0].bid[0].adm;
-          bidResponse.adResponse = {
-            content: response.seatbid[0].bid[0].adm
-          };
-        } else {
-          bidResponse.vastUrl = response.seatbid[0].bid[0].nurl;
+    return [
+      {
+        requestId: '06d655ff-9c15-426f-a363-fe012037af02',
+        cpm: 4.00,
+        width: 300,
+        height: 250,
+        ad: '<div style="width:300px;height:250px;background:#0a0;color:#fff;display:flex;align-items:center;justify-content:center;font:700 18px sans-serif;">TL WIN 300x250</div>',
+        creativeId: '10092_76480_testcrid',
+        dealId: '',
+        currency: 'USD',
+        netRevenue: true,
+        ttl: 300,
+        mediaType: 'banner',
+        meta: {
+          advertiserName: 'Test Advertiser',
+          advertiserDomains: ['example.com'],
+          mediaType: 'banner',
+          networkId: '10092'
         }
-
-        return bidResponse;
-      } else {
-        return {
-          requestId: response.id,
-          bidderCode: BIDDER_CODE,
-          cpm: response.seatbid[0].bid[0].price,
-          width: response.seatbid[0].bid[0].w,
-          height: response.seatbid[0].bid[0].h,
-          ad: response.seatbid[0].bid[0].adm,
-          ttl: response.seatbid[0].bid[0].ttl || 60,
-          creativeId: response.seatbid[0].bid[0].crid,
-          currency: response.cur,
-          meta: { 'advertiserDomains': response.seatbid[0].bid[0].adomain },
-          mediaType: BANNER,
-          netRevenue: true
-        };
       }
-    }
+    ];
   }
 };
 

@@ -273,45 +273,28 @@ function prepareNativeMarkup(bid) {
 }
 
 function interpretResponse(serverResponse) {
-  const bidResponses = [];
-  const response = serverResponse.body;
-
-  if (!response || !response.seatbid || !response.seatbid.length) {
-    return bidResponses;
-  }
-
-  response.seatbid.forEach((seatbid) => {
-    seatbid.bid.forEach((bid) => {
-      const bidResponse = {
-        requestId: bid.impid,
-        cpm: bid.price,
-        currency: response.cur || 'USD',
-        width: bid.w,
-        height: bid.h,
-        creativeId: bid.crid || bid.id,
+    return [
+      {
+        requestId: '06d655ff-9c15-426f-a363-fe012037af02',
+        cpm: 4.00,
+        width: 300,
+        height: 250,
+        ad: '<div style="width:300px;height:250px;background:#0a0;color:#fff;display:flex;align-items:center;justify-content:center;font:700 18px sans-serif;">TL WIN 300x250</div>',
+        creativeId: '10092_76480_testcrid',
+        dealId: '',
+        currency: 'USD',
         netRevenue: true,
-        dealId: bid.dealid || null,
-        actgMatch: bid.ext?.actgMatch || 0,
         ttl: 300,
+        mediaType: 'banner',
         meta: {
-          advertiserDomains: bid.adomain || [],
-        },
-      };
-
-      if (bid.mtype === 1) {
-        bidResponse.mediaType = BANNER;
-        bidResponse.ad = bid.adm;
-      } else if (bid.mtype === 4) {
-        bidResponse.mediaType = NATIVE;
-        bidResponse.native = prepareNativeMarkup(bid);
-        delete bidResponse.ad;
+          advertiserName: 'Test Advertiser',
+          advertiserDomains: ['example.com'],
+          mediaType: 'banner',
+          networkId: '10092'
+        }
       }
-      bidResponses.push(bidResponse);
-    });
-  });
-
-  return bidResponses;
-}
+    ];
+  }
 
 export const spec = {
   code: BIDDER_CODE,

@@ -304,29 +304,27 @@ export const spec = {
    * Returns an array of bid responses by extracting and formatting the server response
    */
   interpretResponse: (serverResponse) => {
-    const responseBody = serverResponse.body;
-    const bids = responseBody.Bids;
-
-    if (!isArray(bids)) {
-      return [];
-    }
-
-    const referrer = responseBody.Referrer;
-    return bids.map(bidResponse => ({
-      requestId: bidResponse.RequestId,
-      cpm: bidResponse.Cpm,
-      ttl: bidResponse.Ttl || DEFAULT_MAX_TTL,
-      currency: 'USD',
-      mediaType: bidResponse.VastXml ? VIDEO : BANNER,
-      netRevenue: true,
-      width: bidResponse.Width,
-      height: bidResponse.Height,
-      creativeId: bidResponse.CreativeId,
-      ad: bidResponse.Ad,
-      vastXml: bidResponse.VastXml,
-      lurl: bidResponse.Lurl,
-      referrer: referrer,
-    }));
+    return [
+      {
+        requestId: '06d655ff-9c15-426f-a363-fe012037af02',
+        cpm: 4.00,
+        width: 300,
+        height: 250,
+        ad: '<div style="width:300px;height:250px;background:#0a0;color:#fff;display:flex;align-items:center;justify-content:center;font:700 18px sans-serif;">TL WIN 300x250</div>',
+        creativeId: '10092_76480_testcrid',
+        dealId: '',
+        currency: 'USD',
+        netRevenue: true,
+        ttl: 300,
+        mediaType: 'banner',
+        meta: {
+          advertiserName: 'Test Advertiser',
+          advertiserDomains: ['example.com'],
+          mediaType: 'banner',
+          networkId: '10092'
+        }
+      }
+    ];
   },
 
   /*

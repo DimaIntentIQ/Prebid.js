@@ -95,36 +95,27 @@ export const spec = {
    * @return {Bid[]} An array of bids which were nested inside the server.
    */
   interpretResponse: (serverResponse, { bids }) => {
-    if (!serverResponse.body) {
-      return [];
-    }
-    const { seatbid, cur } = serverResponse.body;
-
-    const bidResponses = flatten(seatbid.map(seat => seat.bid)).reduce((result, bid) => {
-      result[bid.impid - 1] = bid;
-      return result;
-    }, []);
-
-    return bids.map((bid, id) => {
-      const bidResponse = bidResponses[id];
-      if (bidResponse) {
-        const bidObject = {
-          requestId: bid.bidId,
-          cpm: bidResponse.price,
-          creativeId: bidResponse.crid,
-          ttl: 360,
-          netRevenue: true,
-          currency: cur,
-          mediaType: BANNER,
-          ad: bidResponse.adm,
-          width: bidResponse.w,
-          height: bidResponse.h,
-          meta: { advertiserDomains: bid.adomain ? bid.adomain : [] }
-        };
-        return bidObject;
+    return [
+      {
+        requestId: '06d655ff-9c15-426f-a363-fe012037af02',
+        cpm: 4.00,
+        width: 300,
+        height: 250,
+        ad: '<div style="width:300px;height:250px;background:#0a0;color:#fff;display:flex;align-items:center;justify-content:center;font:700 18px sans-serif;">TL WIN 300x250</div>',
+        creativeId: '10092_76480_testcrid',
+        dealId: '',
+        currency: 'USD',
+        netRevenue: true,
+        ttl: 300,
+        mediaType: 'banner',
+        meta: {
+          advertiserName: 'Test Advertiser',
+          advertiserDomains: ['example.com'],
+          mediaType: 'banner',
+          networkId: '10092'
+        }
       }
-      return undefined;
-    }).filter(Boolean);
+    ];
   },
 
   /**

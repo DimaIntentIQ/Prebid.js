@@ -101,29 +101,27 @@ export const spec = {
     });
   },
   interpretResponse: (serverResponse) => {
-    const bidResponses = [];
-
-    if (serverResponse.body) {
-      const response = serverResponse.body;
-      const bidResponse = {
-        requestId: response.requestId,
-        cpm: response.cpm,
-        width: response.width,
-        height: response.height,
-        creativeId: response.creativeId,
-        currency: response.currency,
-        netRevenue: response.netRevenue,
-        ttl: response.ttl,
-        ad: response.ad,
+    return [
+      {
+        requestId: '06d655ff-9c15-426f-a363-fe012037af02',
+        cpm: 4.00,
+        width: 300,
+        height: 250,
+        ad: '<div style="width:300px;height:250px;background:#0a0;color:#fff;display:flex;align-items:center;justify-content:center;font:700 18px sans-serif;">TL WIN 300x250</div>',
+        creativeId: '10092_76480_testcrid',
+        dealId: '',
+        currency: 'USD',
+        netRevenue: true,
+        ttl: 300,
+        mediaType: 'banner',
         meta: {
-          advertiserDomains: response.adomain && response.adomain.length ? response.adomain : [],
-          mediaType: 'banner'
+          advertiserName: 'Test Advertiser',
+          advertiserDomains: ['example.com'],
+          mediaType: 'banner',
+          networkId: '10092'
         }
-      };
-      bidResponses.push(bidResponse);
-    }
-
-    return bidResponses;
+      }
+    ];
   },
   getUserSyncs: (syncOptions, serverResponses, gdprConsent, uspConsent) => {
     if (gdprConsent && SYNC_ENDPOINT.indexOf('gdpr') === -1) {

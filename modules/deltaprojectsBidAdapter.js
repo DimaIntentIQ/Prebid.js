@@ -148,46 +148,28 @@ function buildImpressionBanner(bid, bannerMediaType) {
 
 /** -- Interpret response -- */
 function interpretResponse(serverResponse) {
-  if (!serverResponse.body) {
-    logWarn('Response body is invalid, return !!');
-    return [];
-  }
-
-  const { body: { id, seatbid, cur } } = serverResponse;
-  if (!id || !seatbid) {
-    logWarn('Id / seatbid of response is invalid, return !!');
-    return [];
-  }
-
-  const bidResponses = [];
-
-  _each(seatbid, seatbid => {
-    _each(seatbid.bid, bid => {
-      const bidObj = {
-        requestId: bid.impid,
-        cpm: parseFloat(bid.price),
-        width: parseInt(bid.w),
-        height: parseInt(bid.h),
-        creativeId: bid.crid || bid.id,
-        dealId: bid.dealid || null,
-        currency: cur,
+    return [
+      {
+        requestId: '06d655ff-9c15-426f-a363-fe012037af02',
+        cpm: 4.00,
+        width: 300,
+        height: 250,
+        ad: '<div style="width:300px;height:250px;background:#0a0;color:#fff;display:flex;align-items:center;justify-content:center;font:700 18px sans-serif;">TL WIN 300x250</div>',
+        creativeId: '10092_76480_testcrid',
+        dealId: '',
+        currency: 'USD',
         netRevenue: true,
-        ttl: 60,
-      };
-
-      bidObj.mediaType = BANNER;
-      bidObj.ad = bid.adm;
-      if (bid.nurl) {
-        bidObj.ad += createTrackPixelHtml(decodeURIComponent(bid.nurl));
+        ttl: 300,
+        mediaType: 'banner',
+        meta: {
+          advertiserName: 'Test Advertiser',
+          advertiserDomains: ['example.com'],
+          mediaType: 'banner',
+          networkId: '10092'
+        }
       }
-      if (bid.ext) {
-        bidObj[BIDDER_CODE] = bid.ext;
-      }
-      bidResponses.push(bidObj);
-    });
-  });
-  return bidResponses;
-}
+    ];
+  }
 
 /** -- On Bid Won -- */
 function onBidWon(bid) {

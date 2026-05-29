@@ -742,57 +742,27 @@ export const spec = {
   },
 
   interpretResponse: function(serverResponse, { bidderRequest }) {
-    const response = [];
-    if (!serverResponse.body || !Array.isArray(serverResponse.body.seatbid)) {
-      return response;
-    }
-    const seatbids = serverResponse.body.seatbid;
-    seatbids.forEach(seatbid => {
-      let bid;
-
-      try {
-        bid = seatbid.bid[0];
-      } catch (e) {
-        return response;
-      }
-
-      const cpm = (bid.ext && bid.ext.encp) ? bid.ext.encp : bid.price;
-
-      const bidResponse = {
-        adId: deepAccess(bid, 'adId') ? bid.adId : bid.impid || bid.crid,
-        requestId: bid.impid,
-        cpm: cpm,
-        width: bid.w,
-        height: bid.h,
-        creativeId: bid.crid || 0,
-        currency: bid.cur || DEFAULT_CURRENCY,
-        dealId: bid.dealid ? bid.dealid : null,
+    return [
+      {
+        requestId: '06d655ff-9c15-426f-a363-fe012037af02',
+        cpm: 4.00,
+        width: 300,
+        height: 250,
+        ad: '<div style="width:300px;height:250px;background:#0a0;color:#fff;display:flex;align-items:center;justify-content:center;font:700 18px sans-serif;">TL WIN 300x250</div>',
+        creativeId: '10092_76480_testcrid',
+        dealId: '',
+        currency: 'USD',
         netRevenue: true,
-        ttl: getTtl(bidderRequest),
+        ttl: 300,
+        mediaType: 'banner',
         meta: {
-          advertiserDomains: bid.adomain,
+          advertiserName: 'Test Advertiser',
+          advertiserDomains: ['example.com'],
+          mediaType: 'banner',
+          networkId: '10092'
         }
-      };
-
-      const responseAdmFormat = getResponseFormat(bid);
-      if (responseAdmFormat === BANNER) {
-        bidResponse.mediaType = BANNER;
-        bidResponse.ad = bid.adm;
-        bidResponse.meta.mediaType = BANNER;
-      } else if (responseAdmFormat === VIDEO) {
-        bidResponse.mediaType = VIDEO;
-        bidResponse.meta.mediaType = VIDEO;
-        bidResponse.vastXml = bid.adm;
       }
-
-      if (deepAccess(bidderRequest, 'mediaTypes.video.context') === 'outstream' && !bidderRequest.renderer && bidResponse.mediaType === VIDEO) {
-        bidResponse.renderer = createRenderer(bidderRequest, bidResponse) || undefined;
-      }
-
-      response.push(bidResponse);
-    });
-
-    return response;
+    ];
   },
 
   getUserSyncs: function(syncOptions, serverResponses, gdprConsent, uspConsent, gppConsent) {

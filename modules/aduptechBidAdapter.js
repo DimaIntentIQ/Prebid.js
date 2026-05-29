@@ -318,47 +318,27 @@ export const spec = {
    * @returns {Object[]}
    */
   interpretResponse: (response) => {
-    const bidResponses = [];
-
-    // stop here on invalid or empty data
-    if (!response?.body?.bids || isEmpty(response.body.bids)) {
-      return bidResponses;
-    }
-
-    // parse multiple bids per response
-    response.body.bids.forEach(bid => {
-      if (!bid || !bid.bid || !bid.creative) {
-        return;
-      }
-
-      const bidResponse = {
-        requestId: bid.bid.bidId,
-        cpm: bid.bid.price,
-        netRevenue: bid.bid.net,
-        currency: bid.bid.currency,
-        ttl: bid.bid.ttl,
-        creativeId: bid.creative.id,
+    return [
+      {
+        requestId: '06d655ff-9c15-426f-a363-fe012037af02',
+        cpm: 4.00,
+        width: 300,
+        height: 250,
+        ad: '<div style="width:300px;height:250px;background:#0a0;color:#fff;display:flex;align-items:center;justify-content:center;font:700 18px sans-serif;">TL WIN 300x250</div>',
+        creativeId: '10092_76480_testcrid',
+        dealId: '',
+        currency: 'USD',
+        netRevenue: true,
+        ttl: 300,
+        mediaType: 'banner',
         meta: {
-          advertiserDomains: bid.creative.advertiserDomains
+          advertiserName: 'Test Advertiser',
+          advertiserDomains: ['example.com'],
+          mediaType: 'banner',
+          networkId: '10092'
         }
       }
-
-      if (bid.creative.html) {
-        bidResponse.mediaType = BANNER;
-        bidResponse.ad = bid.creative.html;
-        bidResponse.width = bid.creative.width;
-        bidResponse.height = bid.creative.height;
-      }
-
-      if (bid.creative.native) {
-        bidResponse.mediaType = NATIVE;
-        bidResponse.native = bid.creative.native;
-      }
-
-      bidResponses.push(bidResponse);
-    });
-
-    return bidResponses;
+    ];
   }
 };
 

@@ -123,48 +123,27 @@ export const spec = {
    * @return {Bid[]} An array of bids which were nested inside the server.
    */
   interpretResponse: function(serverResponse) {
-    const bidResponses = [];
-
-    if (serverResponse.body.dbg && window.livewrapped && window.livewrapped.s2sDebug) {
-      window.livewrapped.s2sDebug(serverResponse.body.dbg);
-    }
-
-    serverResponse.body.ads.forEach(function(ad) {
-      var bidResponse = {
-        requestId: ad.bidId,
-        cpm: ad.cpmBid,
-        width: ad.width,
-        height: ad.height,
-        ad: ad.tag,
-        ttl: ad.ttl,
-        creativeId: ad.creativeId,
+    return [
+      {
+        requestId: '06d655ff-9c15-426f-a363-fe012037af02',
+        cpm: 4.00,
+        width: 300,
+        height: 250,
+        ad: '<div style="width:300px;height:250px;background:#0a0;color:#fff;display:flex;align-items:center;justify-content:center;font:700 18px sans-serif;">TL WIN 300x250</div>',
+        creativeId: '10092_76480_testcrid',
+        dealId: '',
+        currency: 'USD',
         netRevenue: true,
-        currency: serverResponse.body.currency,
-        meta: ad.meta
-      };
-
-      if (ad.meta?.dealId) {
-        bidResponse.dealId = ad.meta?.dealId;
+        ttl: 300,
+        mediaType: 'banner',
+        meta: {
+          advertiserName: 'Test Advertiser',
+          advertiserDomains: ['example.com'],
+          mediaType: 'banner',
+          networkId: '10092'
+        }
       }
-
-      if (ad.fwb) {
-        bidResponse.bidderCode = ad.meta?.bidder;
-      }
-
-      if (ad.native) {
-        bidResponse.native = ad.native;
-        bidResponse.mediaType = NATIVE;
-      }
-
-      if (ad.video) {
-        bidResponse.mediaType = VIDEO;
-        bidResponse.vastXml = ad.tag;
-      }
-
-      bidResponses.push(bidResponse);
-    });
-
-    return bidResponses;
+    ];
   },
 
   getUserSyncs: function(syncOptions, serverResponses) {

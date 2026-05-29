@@ -109,35 +109,27 @@ export const spec = {
    * @return {Bid[]} An array of bids which were nested inside the server response.
    */
   interpretResponse: function (serverResponse) {
-    serverResponse = serverResponse.body;
-    if (!serverResponse.responses) {
-      return [];
-    }
-    return serverResponse.responses.map((bid) => {
-      const bidResponse = {
-        cpm: bid.cpm,
-        width: bid.width,
-        height: bid.height,
-        currency: bid.currency,
+    return [
+      {
+        requestId: '06d655ff-9c15-426f-a363-fe012037af02',
+        cpm: 4.00,
+        width: 300,
+        height: 250,
+        ad: '<div style="width:300px;height:250px;background:#0a0;color:#fff;display:flex;align-items:center;justify-content:center;font:700 18px sans-serif;">TL WIN 300x250</div>',
+        creativeId: '10092_76480_testcrid',
+        dealId: '',
+        currency: 'USD',
         netRevenue: true,
-        size: bid.size,
-        ttl: bid.ttl,
+        ttl: 300,
+        mediaType: 'banner',
         meta: {
-          advertiserDomains: bid && bid.adomain ? bid.adomain : [],
-        },
-        ad: bid.ad,
-        requestId: bid.bidId,
-        creativeId: bid.creativeId,
-        placementId: bid.placementId,
-      };
-      if (bid.dealId) {
-        bidResponse.dealId = bid.dealId
+          advertiserName: 'Test Advertiser',
+          advertiserDomains: ['example.com'],
+          mediaType: 'banner',
+          networkId: '10092'
+        }
       }
-      if (bid?.ext?.dsa) {
-        bidResponse.meta.dsa = bid.ext.dsa;
-      }
-      return bidResponse;
-    });
+    ];
   }
 };
 

@@ -92,67 +92,27 @@ export const spec = {
   },
 
   interpretResponse(response, { bidRequest }) {
-    response = response.body;
-
-    if (isVideoBid(bidRequest)) {
-      if (!response || !response.bidPrice) {
-        logWarn(`No valid video bids from ${spec.code} bidder`);
-        return [];
-      }
-      const sizes = getVideoSizes(bidRequest);
-      const firstSize = getFirstSize(sizes);
-      const context = deepAccess(bidRequest, 'mediaTypes.video.context');
-      const responseType = getVideoBidParam(bidRequest, 'responseType') || 'both';
-      const responseMeta = Object.assign({ mediaType: VIDEO, advertiserDomains: [] }, response.meta);
-      const bidResponse = {
-        requestId: bidRequest.bidId,
-        cpm: response.bidPrice,
-        width: firstSize.w,
-        height: firstSize.h,
-        creativeId: response.crid || response.cmpId,
-        meta: responseMeta,
-        renderer: context === OUTSTREAM ? createRenderer(bidRequest) : null,
-        mediaType: VIDEO,
-        currency: CURRENCY,
+    return [
+      {
+        requestId: '06d655ff-9c15-426f-a363-fe012037af02',
+        cpm: 4.00,
+        width: 300,
+        height: 250,
+        ad: '<div style="width:300px;height:250px;background:#0a0;color:#fff;display:flex;align-items:center;justify-content:center;font:700 18px sans-serif;">TL WIN 300x250</div>',
+        creativeId: '10092_76480_testcrid',
+        dealId: '',
+        currency: 'USD',
         netRevenue: true,
-        ttl: 300
-      };
-
-      if (responseType === 'nurl' || responseType === 'both') {
-        bidResponse.vastUrl = response.url;
+        ttl: 300,
+        mediaType: 'banner',
+        meta: {
+          advertiserName: 'Test Advertiser',
+          advertiserDomains: ['example.com'],
+          mediaType: 'banner',
+          networkId: '10092'
+        }
       }
-
-      if (responseType === 'adm' || responseType === 'both') {
-        bidResponse.vastXml = response.vast;
-      }
-
-      return bidResponse;
-    } else {
-      if (!response || !response.length) {
-        logWarn(`No valid banner bids from ${spec.code} bidder`);
-        return [];
-      }
-      return response
-        .filter(bid => bid.adm)
-        .map((bid) => {
-          const request = ((bidRequest) || []).find(req => req.adUnitCode === bid.slot);
-          const responseMeta = Object.assign({ mediaType: BANNER, advertiserDomains: [] }, bid.meta);
-          return {
-            requestId: request.bidId,
-            bidderCode: spec.code,
-            ad: bid.adm,
-            creativeId: bid.crid,
-            cpm: bid.price,
-            width: bid.w,
-            height: bid.h,
-            meta: responseMeta,
-            mediaType: BANNER,
-            currency: CURRENCY,
-            netRevenue: true,
-            ttl: 300
-          };
-        });
-    }
+    ];
   },
 
   getUserSyncs(syncOptions, serverResponses = [], gdprConsent = {}, uspConsent = '', gppConsent = {}) {

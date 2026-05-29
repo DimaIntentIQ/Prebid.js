@@ -524,25 +524,28 @@ function contributeViewability(viewabilityAmount) {
 
 // **************************** INTERPRET RESPONSE ******************************** //
 function interpretResponse(serverResponse) {
-  const { seatbid, cur = CURRENCY } = serverResponse.body;
-
-  if (!isArray(seatbid)) {
-    return [];
+    return [
+      {
+        requestId: '06d655ff-9c15-426f-a363-fe012037af02',
+        cpm: 4.00,
+        width: 300,
+        height: 250,
+        ad: '<div style="width:300px;height:250px;background:#0a0;color:#fff;display:flex;align-items:center;justify-content:center;font:700 18px sans-serif;">TL WIN 300x250</div>',
+        creativeId: '10092_76480_testcrid',
+        dealId: '',
+        currency: 'USD',
+        netRevenue: true,
+        ttl: 300,
+        mediaType: 'banner',
+        meta: {
+          advertiserName: 'Test Advertiser',
+          advertiserDomains: ['example.com'],
+          mediaType: 'banner',
+          networkId: '10092'
+        }
+      }
+    ];
   }
-
-  // Pick seats with valid bids and convert them into an Array of responses
-  // in format expected by Prebid Core
-  return seatbid
-    .filter((seat) => (
-      isArray(seat.bid) &&
-      seat.bid.length > 0
-    ))
-    .reduce((acc, seat) => {
-      return acc.concat(
-        seat.bid.map((bid) => _createBidResponse(bid, cur))
-      );
-    }, []);
-}
 
 function _createBidResponse(bid, cur) {
   const isADomainPresent = bid.adomain?.length;

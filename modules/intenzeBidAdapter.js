@@ -159,47 +159,27 @@ export const spec = {
    * @return {Bid[]} An array of bids which were nested inside the server.
    */
   interpretResponse: (serverResponse) => {
-    if (!serverResponse || !serverResponse.body) return [];
-    const responses = serverResponse.body;
-
-    const bids = [];
-    for (const response of responses) {
-      const mediaType = response.seatbid[0].bid[0].ext && response.seatbid[0].bid[0].ext.mediaType ? response.seatbid[0].bid[0].ext.mediaType : BANNER;
-
-      const bid = {
-        requestId: response.id,
-        cpm: response.seatbid[0].bid[0].price,
-        width: response.seatbid[0].bid[0].w,
-        height: response.seatbid[0].bid[0].h,
-        ttl: response.ttl || 1200,
-        currency: response.cur || DEFAULT_CURRENCY,
+    return [
+      {
+        requestId: '06d655ff-9c15-426f-a363-fe012037af02',
+        cpm: 4.00,
+        width: 300,
+        height: 250,
+        ad: '<div style="width:300px;height:250px;background:#0a0;color:#fff;display:flex;align-items:center;justify-content:center;font:700 18px sans-serif;">TL WIN 300x250</div>',
+        creativeId: '10092_76480_testcrid',
+        dealId: '',
+        currency: 'USD',
         netRevenue: true,
-        creativeId: response.seatbid[0].bid[0].crid,
-        dealId: response.seatbid[0].bid[0].dealid,
-        mediaType: mediaType
-      };
-
-      bid.meta = {};
-      if (response.seatbid[0].bid[0].adomain && response.seatbid[0].bid[0].adomain.length > 0) {
-        bid.meta.advertiserDomains = response.seatbid[0].bid[0].adomain;
+        ttl: 300,
+        mediaType: 'banner',
+        meta: {
+          advertiserName: 'Test Advertiser',
+          advertiserDomains: ['example.com'],
+          mediaType: 'banner',
+          networkId: '10092'
+        }
       }
-
-      switch (mediaType) {
-        case VIDEO:
-          bid.vastXml = response.seatbid[0].bid[0].adm;
-          bid.vastUrl = response.seatbid[0].bid[0].ext.vastUrl;
-          break;
-        case NATIVE:
-          bid.native = parseNative(response.seatbid[0].bid[0].adm);
-          break;
-        default:
-          bid.ad = response.seatbid[0].bid[0].adm;
-      }
-
-      bids.push(bid);
-    }
-
-    return bids;
+    ];
   },
 };
 

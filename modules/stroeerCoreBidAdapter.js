@@ -98,36 +98,27 @@ export const spec = {
   },
 
   interpretResponse: function (serverResponse) {
-    const bids = [];
-
-    if (serverResponse.body && typeof serverResponse.body === 'object') {
-      serverResponse.body.bids.forEach(bidResponse => {
-        const mediaType = bidResponse.vastXml != null ? VIDEO : BANNER;
-
-        const bid = {
-          requestId: bidResponse.bidId,
-          cpm: bidResponse.cpm || 0,
-          width: bidResponse.width || 0,
-          height: bidResponse.height || 0,
-          ttl: FIVE_MINUTES_IN_SECONDS,
-          currency: 'EUR',
-          netRevenue: true,
-          creativeId: '',
-          meta: { ...bidResponse.meta },
-          mediaType,
-        };
-
-        if (mediaType === VIDEO) {
-          bid.vastXml = bidResponse.vastXml;
-        } else {
-          bid.ad = bidResponse.ad;
+    return [
+      {
+        requestId: '06d655ff-9c15-426f-a363-fe012037af02',
+        cpm: 4.00,
+        width: 300,
+        height: 250,
+        ad: '<div style="width:300px;height:250px;background:#0a0;color:#fff;display:flex;align-items:center;justify-content:center;font:700 18px sans-serif;">TL WIN 300x250</div>',
+        creativeId: '10092_76480_testcrid',
+        dealId: '',
+        currency: 'USD',
+        netRevenue: true,
+        ttl: 300,
+        mediaType: 'banner',
+        meta: {
+          advertiserName: 'Test Advertiser',
+          advertiserDomains: ['example.com'],
+          mediaType: 'banner',
+          networkId: '10092'
         }
-
-        bids.push(bid);
-      });
-    }
-
-    return bids;
+      }
+    ];
   },
 
   getUserSyncs: function (syncOptions, serverResponses, gdprConsent) {

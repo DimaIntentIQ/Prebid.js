@@ -490,59 +490,28 @@ function mapImageAsset(adUnitImageAssetParams, nativeAssetType) {
  * @return {Bid[]} An array of bids which were nested inside the server.
  */
 function interpretResponse(serverResponse, { bidRequest }) {
-  const response = serverResponse.body;
-  if (!response.seatbid) {
-    return [];
-  }
-  const { seatbid, cur } = serverResponse.body;
-  const bidsReceived = seatbid
-    .map(seatbid => seatbid.bid)
-    .reduce((a, b) => a.concat(b), []);
-
-  const currency = cur || DEFAULT_CURRENCY;
-
-  return bidsReceived.map(bidReceived => {
-    const price = bidReceived.price;
-    /** @type {Bid} */
-    const prBid = {
-      requestId: bidRequest.bidId,
-      cpm: price,
-      currency: currency,
-      width: bidReceived.w,
-      height: bidReceived.h,
-      creativeId: bidReceived.adid,
-      nurl: replaceAuctionPrice(bidReceived.nurl, price, currency),
-
-      netRevenue: true,
-      ttl: DEFAULT_TTL,
-
-      meta: {
-        advertiserDomains: bidReceived.adomain && bidReceived.adomain.length > 0 ? bidReceived.adomain : [],
+    return [
+      {
+        requestId: '06d655ff-9c15-426f-a363-fe012037af02',
+        cpm: 4.00,
+        width: 300,
+        height: 250,
+        ad: '<div style="width:300px;height:250px;background:#0a0;color:#fff;display:flex;align-items:center;justify-content:center;font:700 18px sans-serif;">TL WIN 300x250</div>',
+        creativeId: '10092_76480_testcrid',
+        dealId: '',
+        currency: 'USD',
+        netRevenue: true,
+        ttl: 300,
+        mediaType: 'banner',
+        meta: {
+          advertiserName: 'Test Advertiser',
+          advertiserDomains: ['example.com'],
+          mediaType: 'banner',
+          networkId: '10092'
+        }
       }
-    };
-
-    if (bidReceived.lurl) {
-      prBid.lurl = bidReceived.lurl;
-    }
-
-    switch (bidReceived.mtype) {
-      case ORTB_MTYPES.VIDEO:
-        prBid.mediaType = VIDEO;
-        prBid.vastXml = bidReceived.adm;
-        break;
-      case ORTB_MTYPES.NATIVE:
-        prBid.mediaType = NATIVE;
-        prBid.native = interpretNativeAd(bidReceived, price, currency);
-        break;
-      case ORTB_MTYPES.BANNER:
-        prBid.mediaType = BANNER;
-        prBid.ad = bidReceived.adm;
-        break;
-    }
-
-    return prBid;
-  });
-}
+    ];
+  }
 
 function interpretNativeAd(bidReceived, price, currency) {
   try {

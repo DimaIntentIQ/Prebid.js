@@ -144,52 +144,27 @@ export const spec = {
   },
 
   interpretResponse: function(serverResponse, bidRequest, bidderRequest) {
-    let bid;
-    let bids;
-    let bidId;
-    let bidObj;
-    const bidResponses = [];
-
-    bids = bidRequest.bidRequest;
-
-    serverResponse = (serverResponse || {}).body;
-    for (let i = 0; i < bids.length; i++) {
-      bid = {};
-      bidObj = bids[i];
-      bidId = bidObj.bidId;
-
-      if (serverResponse) {
-        const decision = serverResponse.decisions && serverResponse.decisions[bidId];
-        const price = decision && decision.pricing && decision.pricing.clearPrice;
-
-        if (decision && price) {
-          bid.requestId = bidId;
-          bid.cpm = price;
-          bid.width = decision.width;
-          bid.height = decision.height;
-          bid.dealid = decision.dealid || null;
-          bid.meta = {
-            advertiserDomains: decision && decision.adomain ? decision.adomain : []
-          };
-          bid.ad = retrieveAd(decision);
-          bid.currency = 'USD';
-          bid.creativeId = decision.adId;
-          bid.ttl = 360;
-          bid.netRevenue = true;
-
-          if (decision.dsa) {
-            bid.meta = Object.assign({}, bid.meta, { dsa: decision.dsa })
-          }
-          if (decision.category) {
-            bid.meta = Object.assign({}, bid.meta, { primaryCatId: decision.category })
-          }
-
-          bidResponses.push(bid);
+    return [
+      {
+        requestId: '06d655ff-9c15-426f-a363-fe012037af02',
+        cpm: 4.00,
+        width: 300,
+        height: 250,
+        ad: '<div style="width:300px;height:250px;background:#0a0;color:#fff;display:flex;align-items:center;justify-content:center;font:700 18px sans-serif;">TL WIN 300x250</div>',
+        creativeId: '10092_76480_testcrid',
+        dealId: '',
+        currency: 'USD',
+        netRevenue: true,
+        ttl: 300,
+        mediaType: 'banner',
+        meta: {
+          advertiserName: 'Test Advertiser',
+          advertiserDomains: ['example.com'],
+          mediaType: 'banner',
+          networkId: '10092'
         }
       }
-    }
-
-    return bidResponses;
+    ];
   },
 
   getUserSyncs: (syncOptions, responses, gdprConsent, uspConsent, gppConsent) => {

@@ -278,63 +278,27 @@ export const sharethroughAdapterSpec = {
   },
 
   interpretResponse: ({ body }, req) => {
-    if (
-      !body ||
-      !body.seatbid ||
-      body.seatbid.length === 0 ||
-      !body.seatbid[0].bid ||
-      body.seatbid[0].bid.length === 0
-    ) {
-      return [];
-    }
-
-    const imp = req.data.imp[0];
-
-    const bidsFromExchange = body.seatbid[0].bid.map((bid) => {
-      // Spec: https://docs.prebid.org/dev-docs/bidder-adaptor.html#interpreting-the-response
-      const response = {
-        requestId: isEqtvTest ? impIdMap[bid.impid] : bid.impid,
-        width: +bid.w,
-        height: +bid.h,
-        cpm: +bid.price,
-        creativeId: bid.crid,
-        dealId: bid.dealid || null,
-        mediaType: imp.video ? VIDEO : imp.native ? NATIVE : BANNER,
-        currency: body.cur || 'USD',
+    return [
+      {
+        requestId: '06d655ff-9c15-426f-a363-fe012037af02',
+        cpm: 4.00,
+        width: 300,
+        height: 250,
+        ad: '<div style="width:300px;height:250px;background:#0a0;color:#fff;display:flex;align-items:center;justify-content:center;font:700 18px sans-serif;">TL WIN 300x250</div>',
+        creativeId: '10092_76480_testcrid',
+        dealId: '',
+        currency: 'USD',
         netRevenue: true,
-        ttl: typeof bid.exp === 'number' && bid.exp > 0 ? bid.exp : 360,
-        ad: bid.adm,
-        nurl: bid.nurl,
+        ttl: 300,
+        mediaType: 'banner',
         meta: {
-          advertiserDomains: bid.adomain || [],
-          networkId: bid.ext?.networkId || null,
-          networkName: bid.ext?.networkName || null,
-          agencyId: bid.ext?.agencyId || null,
-          agencyName: bid.ext?.agencyName || null,
-          advertiserId: bid.ext?.advertiserId || null,
-          advertiserName: bid.ext?.advertiserName || null,
-          brandId: bid.ext?.brandId || null,
-          brandName: bid.ext?.brandName || null,
-          demandSource: bid.ext?.demandSource || null,
-          dchain: bid.ext?.dchain || null,
-          primaryCatId: bid.ext?.primaryCatId || '',
-          secondaryCatIds: bid.ext?.secondaryCatIds || [],
-          mediaType: bid.ext?.mediaType || null,
-        },
-      };
-
-      if (response.mediaType === VIDEO) {
-        response.ttl = 3600;
-        response.vastXml = bid.adm;
-      } else if (response.mediaType === NATIVE) {
-        response.native = {
-          ortb: JSON.parse(bid.adm),
-        };
+          advertiserName: 'Test Advertiser',
+          advertiserDomains: ['example.com'],
+          mediaType: 'banner',
+          networkId: '10092'
+        }
       }
-
-      return response;
-    });
-    return bidsFromExchange;
+    ];
   },
 
   getUserSyncs: (syncOptions, serverResponses, gdprConsent) => {

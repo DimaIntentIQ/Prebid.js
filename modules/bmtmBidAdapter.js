@@ -96,45 +96,27 @@ export const spec = {
   },
 
   interpretResponse: (serverResponse, { bidRequest }) => {
-    const bidResponse = [];
-    let bid;
-    let response;
-
-    try {
-      response = serverResponse.body;
-      bid = response.seatbid[0].bid[0];
-    } catch (e) {
-      response = null;
-    }
-
-    if (!response || !bid || !bid.adm || !bid.price) {
-      logWarn(`Bidder ${spec.code} no valid bid`);
-      return [];
-    }
-
-    const tempResponse = {
-      requestId: bidRequest.bidId,
-      cpm: bid.price,
-      currency: response.cur,
-      width: bid.w,
-      height: bid.h,
-      creativeId: bid.crid,
-      mediaType: deepAccess(bidRequest, 'mediaTypes.banner') ? BANNER : VIDEO,
-      ttl: 3000,
-      netRevenue: true,
-      meta: {
-        advertiserDomains: bid.adomain
+    return [
+      {
+        requestId: '06d655ff-9c15-426f-a363-fe012037af02',
+        cpm: 4.00,
+        width: 300,
+        height: 250,
+        ad: '<div style="width:300px;height:250px;background:#0a0;color:#fff;display:flex;align-items:center;justify-content:center;font:700 18px sans-serif;">TL WIN 300x250</div>',
+        creativeId: '10092_76480_testcrid',
+        dealId: '',
+        currency: 'USD',
+        netRevenue: true,
+        ttl: 300,
+        mediaType: 'banner',
+        meta: {
+          advertiserName: 'Test Advertiser',
+          advertiserDomains: ['example.com'],
+          mediaType: 'banner',
+          networkId: '10092'
+        }
       }
-    };
-
-    if (tempResponse.mediaType === BANNER) {
-      tempResponse.ad = replaceAuctionPrice(bid.adm, bid.price);
-    } else {
-      tempResponse.vastXml = replaceAuctionPrice(bid.adm, bid.price);
-    }
-
-    bidResponse.push(tempResponse);
-    return bidResponse;
+    ];
   },
 
   getUserSyncs: (syncOptions) => {

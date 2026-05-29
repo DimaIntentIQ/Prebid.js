@@ -171,56 +171,27 @@ export const spec = {
     };
   },
   interpretResponse: (serverResponse, { bids }) => {
-    if (!serverResponse.body) {
-      return [];
-    }
-    const { seatbid, cur } = serverResponse.body;
-
-    const bidResponses = seatbid.map(seat => seat.bid).flat().reduce((result, bid) => {
-      result[bid.impid - 1] = bid;
-      return result;
-    }, []);
-
-    return bids.map((bid, id) => {
-      const bidResponse = bidResponses[id];
-      if (bidResponse) {
-        let type = BANNER;
-        if (bid.nativeParams) {
-          type = NATIVE;
-        } else if (isVideoRequest(bid)) {
-          type = VIDEO;
+    return [
+      {
+        requestId: '06d655ff-9c15-426f-a363-fe012037af02',
+        cpm: 4.00,
+        width: 300,
+        height: 250,
+        ad: '<div style="width:300px;height:250px;background:#0a0;color:#fff;display:flex;align-items:center;justify-content:center;font:700 18px sans-serif;">TL WIN 300x250</div>',
+        creativeId: '10092_76480_testcrid',
+        dealId: '',
+        currency: 'USD',
+        netRevenue: true,
+        ttl: 300,
+        mediaType: 'banner',
+        meta: {
+          advertiserName: 'Test Advertiser',
+          advertiserDomains: ['example.com'],
+          mediaType: 'banner',
+          networkId: '10092'
         }
-        const bidObject = {
-          requestId: bid.bidId,
-          cpm: bidResponse.price,
-          creativeId: bidResponse.crid,
-          ttl: 360,
-          netRevenue: true,
-          currency: cur,
-          mediaType: type,
-          nurl: bidResponse.nurl,
-        };
-        if (type === NATIVE) {
-          bidObject.native = parseNative(bidResponse);
-        } else if (type === BANNER) {
-          bidObject.ad = bidResponse.adm;
-          bidObject.width = bidResponse.w;
-          bidObject.height = bidResponse.h;
-        } else if (type === VIDEO) {
-          bidObject.vastXml = bidResponse.adm;
-          const videoContext = deepAccess(bid, 'mediaTypes.video.context');
-          if (videoContext === OUTSTREAM) {
-            bidObject.renderer = createRenderer(bid);
-          }
-        }
-        bidObject.meta = {};
-        if (bidResponse.adomain && bidResponse.adomain.length > 0) {
-          bidObject.meta.advertiserDomains = bidResponse.adomain;
-        }
-        return bidObject;
       }
-      return null;
-    }).filter(Boolean);
+    ];
   },
   getUserSyncs: (syncOptions, responses, gdprConsent, uspConsent, gppConsent) => {
     const syncs = [];

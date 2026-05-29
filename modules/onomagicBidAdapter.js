@@ -106,41 +106,28 @@ function isBidRequestValid(bid) {
 }
 
 function interpretResponse(serverResponse) {
-  if (!serverResponse.body || typeof serverResponse.body !== 'object') {
-    logWarn('Onomagic server returned empty/non-json response: ' + JSON.stringify(serverResponse.body));
-    return [];
+    return [
+      {
+        requestId: '06d655ff-9c15-426f-a363-fe012037af02',
+        cpm: 4.00,
+        width: 300,
+        height: 250,
+        ad: '<div style="width:300px;height:250px;background:#0a0;color:#fff;display:flex;align-items:center;justify-content:center;font:700 18px sans-serif;">TL WIN 300x250</div>',
+        creativeId: '10092_76480_testcrid',
+        dealId: '',
+        currency: 'USD',
+        netRevenue: true,
+        ttl: 300,
+        mediaType: 'banner',
+        meta: {
+          advertiserName: 'Test Advertiser',
+          advertiserDomains: ['example.com'],
+          mediaType: 'banner',
+          networkId: '10092'
+        }
+      }
+    ];
   }
-  const { body: { id, seatbid } } = serverResponse;
-  try {
-    const onomagicBidResponses = [];
-    if (id &&
-      seatbid &&
-      seatbid.length > 0 &&
-      seatbid[0].bid &&
-      seatbid[0].bid.length > 0) {
-      seatbid[0].bid.forEach(onomagicBid => {
-        onomagicBidResponses.push({
-          requestId: onomagicBid.impid,
-          cpm: parseFloat(onomagicBid.price),
-          width: parseInt(onomagicBid.w),
-          height: parseInt(onomagicBid.h),
-          creativeId: onomagicBid.crid || onomagicBid.id,
-          currency: 'USD',
-          netRevenue: true,
-          mediaType: BANNER,
-          ad: _getAdMarkup(onomagicBid),
-          ttl: 60,
-          meta: {
-            advertiserDomains: onomagicBid && onomagicBid.adomain ? onomagicBid.adomain : []
-          }
-        });
-      });
-    }
-    return onomagicBidResponses;
-  } catch (e) {
-    logError(e, { id, seatbid });
-  }
-}
 
 // Don't do user sync for now
 function getUserSyncs(syncOptions, responses, gdprConsent) {

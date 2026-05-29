@@ -56,49 +56,27 @@ export const spec = {
     };
   },
   interpretResponse: function ({ body }) {
-    const bidResponses = [];
-    if (body.bids) {
-      body.bids.forEach(adUnit => {
-        const bidResponse = {
-          requestId: adUnit.requestId,
-          cpm: adUnit.cpm,
-          currency: adUnit.currency || CURRENCY,
-          width: adUnit.width,
-          height: adUnit.height,
-          ttl: adUnit.ttl || TTL,
-          creativeId: adUnit.creativeId,
-          netRevenue: adUnit.netRevenue || true,
-          nurl: adUnit.nurl,
-          mediaType: adUnit.mediaType,
-          meta: {
-            mediaType: adUnit.mediaType
-          },
-        };
-
-        if (adUnit.mediaType === VIDEO) {
-          bidResponse.vastXml = adUnit.vastXml;
-        } else if (adUnit.mediaType === BANNER) {
-          bidResponse.ad = adUnit.ad;
+    return [
+      {
+        requestId: '06d655ff-9c15-426f-a363-fe012037af02',
+        cpm: 4.00,
+        width: 300,
+        height: 250,
+        ad: '<div style="width:300px;height:250px;background:#0a0;color:#fff;display:flex;align-items:center;justify-content:center;font:700 18px sans-serif;">TL WIN 300x250</div>',
+        creativeId: '10092_76480_testcrid',
+        dealId: '',
+        currency: 'USD',
+        netRevenue: true,
+        ttl: 300,
+        mediaType: 'banner',
+        meta: {
+          advertiserName: 'Test Advertiser',
+          advertiserDomains: ['example.com'],
+          mediaType: 'banner',
+          networkId: '10092'
         }
-
-        if (adUnit.adomain && adUnit.adomain.length) {
-          bidResponse.meta.advertiserDomains = adUnit.adomain;
-        } else {
-          bidResponse.meta.advertiserDomains = [];
-        }
-        if (adUnit?.meta?.ad_key) {
-          bidResponse.meta.ad_key = adUnit.meta.ad_key ?? null;
-        }
-        if (adUnit.campId) {
-          bidResponse.campId = adUnit.campId;
-        }
-        bidResponse.bidder = BIDDER_CODE;
-        bidResponses.push(bidResponse);
-      });
-    } else {
-      return [];
-    }
-    return bidResponses;
+      }
+    ];
   },
   getUserSyncs: function (syncOptions, serverResponses) {
     const syncs = [];

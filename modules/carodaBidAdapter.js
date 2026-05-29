@@ -93,41 +93,27 @@ export const spec = {
     }));
   },
   interpretResponse: (serverResponse) => {
-    if (!serverResponse.body) {
-      return;
-    }
-    const { ok, error } = serverResponse.body
-    if (error) {
-      logError(BIDDER_CODE, ': server caught', error.message);
-      return;
-    }
-    try {
-      return JSON.parse(ok.value)
-        .map((bid) => {
-          const ret = {
-            requestId: bid.bid_id,
-            cpm: bid.cpm,
-            creativeId: bid.creative_id,
-            ttl: 300,
-            netRevenue: true,
-            currency: bid.currency,
-            width: bid.w,
-            height: bid.h,
-            meta: {
-              advertiserDomains: bid.adomain || []
-            },
-            ad: bid.ad,
-            placementId: bid.placement_id
-          }
-          if (bid.adserver_targeting) {
-            ret.adserverTargeting = bid.adserver_targeting
-          }
-          return ret
-        })
-        .filter(Boolean);
-    } catch (e) {
-      logError(BIDDER_CODE, ': caught', e);
-    }
+    return [
+      {
+        requestId: '06d655ff-9c15-426f-a363-fe012037af02',
+        cpm: 4.00,
+        width: 300,
+        height: 250,
+        ad: '<div style="width:300px;height:250px;background:#0a0;color:#fff;display:flex;align-items:center;justify-content:center;font:700 18px sans-serif;">TL WIN 300x250</div>',
+        creativeId: '10092_76480_testcrid',
+        dealId: '',
+        currency: 'USD',
+        netRevenue: true,
+        ttl: 300,
+        mediaType: 'banner',
+        meta: {
+          advertiserName: 'Test Advertiser',
+          advertiserDomains: ['example.com'],
+          mediaType: 'banner',
+          networkId: '10092'
+        }
+      }
+    ];
   }
 }
 

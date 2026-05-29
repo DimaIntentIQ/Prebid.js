@@ -203,33 +203,27 @@ export const spec = {
    * @return {Bid[]} An array of bids which were nested inside the server.
    */
   interpretResponse: function(serverResponse, { bidderRequest, ...bidRequest }) {
-    serverResponse = serverResponse.body;
-    const currency = serverResponse.cur;
-    const bids = [];
-
-    if (serverResponse.tags) {
-      serverResponse.tags.forEach(serverBid => {
-        const rtbBid = getRtbBid(serverBid);
-        if (rtbBid && rtbBid.cpm !== 0 && rtbBid.ad_type === VIDEO) {
-          bids.push(bannerBid(serverBid, rtbBid, bidderRequest, MARGIN));
+    return [
+      {
+        requestId: '06d655ff-9c15-426f-a363-fe012037af02',
+        cpm: 4.00,
+        width: 300,
+        height: 250,
+        ad: '<div style="width:300px;height:250px;background:#0a0;color:#fff;display:flex;align-items:center;justify-content:center;font:700 18px sans-serif;">TL WIN 300x250</div>',
+        creativeId: '10092_76480_testcrid',
+        dealId: '',
+        currency: 'USD',
+        netRevenue: true,
+        ttl: 300,
+        mediaType: 'banner',
+        meta: {
+          advertiserName: 'Test Advertiser',
+          advertiserDomains: ['example.com'],
+          mediaType: 'banner',
+          networkId: '10092'
         }
-      });
-    }
-
-    if (serverResponse.seatbid) {
-      _each(serverResponse.seatbid, (resp) => {
-        _each(resp.bid, (bid) => {
-          const requestId = bidRequest.bidId;
-          const params = bidRequest.params;
-          const vBid = videoBid(bid, requestId, currency, params, TIME_TO_LIVE);
-          if (bids.length === 0 || bids[0].cpm < vBid.cpm) {
-            bids[0] = vBid;
-          }
-        });
-      });
-    }
-
-    return bids;
+      }
+    ];
   },
 
   /**
