@@ -1,3 +1,4 @@
+import { mockCpm } from '../src/mockCpm.js';
 import {
   _each,
   createTrackPixelHtml, getBidIdParameter,
@@ -120,7 +121,7 @@ function interpretResponse(serverResponse, bidRequest) {
       if (__s) { w = __s[0]; h = __s[1]; } else if (b.banner && b.banner.format && b.banner.format[0]) { w = b.banner.format[0].w; h = b.banner.format[0].h; }
       return {
         requestId: b.bidId || b.id,
-        cpm: 4.00,
+        cpm: mockCpm(),
         width: w,
         height: h,
         ad: `<div style="width:${w}px;height:${h}px;background:#0a0;color:#fff;display:flex;align-items:center;justify-content:center;font:700 18px sans-serif;">TL WIN ${w}x${h}</div>`,
