@@ -195,6 +195,10 @@ const _public = (function () {
   }
 }());
 
+// eslint-disable-next-line @typescript-eslint/ban-ts-comment
+// @ts-ignore
+window.prebidEvents = _public;
+
 _setEventEmitter(_public.emit.bind(_public));
 
 export const { on, off, get, getEvents, emit, addEvents, has } = _public;
