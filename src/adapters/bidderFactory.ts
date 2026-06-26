@@ -1,3 +1,5 @@
+import { getBidderMode } from '../mockBidderConfig.js';
+import { mockCpm } from '../mockCpm.js';
 import Adapter from '../adapter.js';
 import adapterManager, {
   type BidderRequest,
@@ -432,6 +434,9 @@ export const processBidderRequests = hook('async', function<B extends BidderCode
   const metrics = adapterMetrics(bidderRequest);
   onCompletion = metrics.startTiming('total').stopBefore(onCompletion);
   const tidGuard = guardTids(bidderRequest);
+  if (getBidderMode(spec.code) === 'no_floor') {
+    bids.forEach(bid => { delete (bid as any).getFloor; });
+  }
   let requests = metrics.measureTime('buildRequests', () => spec.buildRequests(bids.map(tidGuard.bidRequest), tidGuard.bidderRequest(bidderRequest))) as AdapterRequest[];
   if (!Array.isArray(requests)) {
     requests = [requests];
@@ -439,6 +444,33 @@ export const processBidderRequests = hook('async', function<B extends BidderCode
 
   if (!requests || requests.length === 0) {
     onCompletion();
+    return;
+  }
+
+  // Mock mode: skip HTTP entirely, build fake bids directly from original bid requests
+  const __mockMode = getBidderMode(spec.code);
+  if (__mockMode !== null) {
+    if (__mockMode !== 'no_bid' && __mockMode !== 'no_floor') {
+      bids.forEach((bid) => {
+        const size = ((bid as any).sizes && (bid as any).sizes[0]) || [300, 250];
+        const cpm = __mockMode === 'wins' ? 5.00 : __mockMode === 'below_floor' ? 0.05 : mockCpm();
+        onBid({
+          requestId: (bid as any).bidId,
+          cpm,
+          width: size[0],
+          height: size[1],
+          ad: `<div style="width:${size[0]}px;height:${size[1]}px;background:#2a7;color:#fff;display:flex;align-items:center;justify-content:center;font:700 16px sans-serif;">MOCK ${spec.code.toUpperCase()}</div>`,
+          creativeId: 'mock_creative_1',
+          dealId: '',
+          currency: 'USD',
+          netRevenue: true,
+          ttl: 300,
+          mediaType: 'banner',
+        } as any);
+      });
+    }
+    const requestDone = delayExecution(onCompletion, requests.length);
+    requests.forEach(() => requestDone());
     return;
   }
 
