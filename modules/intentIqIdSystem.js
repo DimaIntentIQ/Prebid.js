@@ -767,7 +767,8 @@ export const intentIqIdSubmodule = {
         sendAjax('');
       }
     };
-    scheduleAnalyticsDetection({ configParams, firstPartyData, partnerData, runtimeEids, timeout: 5000 });
+    scheduleAnalyticsDetection({ configParams, firstPartyData, partnerData, runtimeEids, timeout: 10000 });
+    // @todo: add page unload handling to trigger final analytics sending
     const respObj = { callback: resp };
     if (runtimeEids?.eids?.length) respObj.id = runtimeEids.eids;
     return respObj
