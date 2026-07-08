@@ -591,7 +591,7 @@ function getDefaultDataObject(): Record<string, any> {
 }
 
 function constructFullUrl(data: Record<string, any>): any {
-  const report = [];
+  const report: string[] = [];
   const reportMethod = iiqAnalyticsAnalyticsAdapter.initOptions.reportMethod;
   const partnerData = (window as any)[identityGlobalName as string]?.partnerData;
   const currentBrowserLowerCase = detectBrowser();
@@ -624,12 +624,12 @@ function constructFullUrl(data: Record<string, any>): any {
         PREBID +
         '&uh=' +
         encodeURIComponent(iiqAnalyticsAnalyticsAdapter.initOptions.clientHints) +
-        (isValidValue(cmpData.uspString) ? '&us_privacy=' + encodeURIComponent(cmpData.uspString) : '') +
-        (isValidValue(cmpData.gppString) ? '&gpp=' + encodeURIComponent(cmpData.gppString) : '') +
+        (isValidValue(cmpData.uspString) ? '&us_privacy=' + encodeURIComponent(cmpData.uspString as string) : '') +
+        (isValidValue(cmpData.gppString) ? '&gpp=' + encodeURIComponent(cmpData.gppString as string) : '') +
         (isValidValue(cmpData.gdprString)
-          ? '&gdpr_consent=' + encodeURIComponent(cmpData.gdprString) + '&gdpr=1'
+          ? '&gdpr_consent=' + encodeURIComponent(cmpData.gdprString as string) + '&gdpr=1'
           : '&gdpr=0') +
-        (cmpData.gdprApplies && isValidValue(cmpData.tcfApiVersion) ? '&tcfv=' + encodeURIComponent(cmpData.tcfApiVersion) : '');
+        (cmpData.gdprApplies && isValidValue(cmpData.tcfApiVersion) ? '&tcfv=' + encodeURIComponent(cmpData.tcfApiVersion as string) : '');
 
   url = appendSPData(url, partnerData);
   url = appendVrrefAndFui(url, iiqAnalyticsAnalyticsAdapter.initOptions.domainName);

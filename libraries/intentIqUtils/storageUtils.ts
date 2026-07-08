@@ -6,7 +6,7 @@ import { MODULE_TYPE_UID } from '../../src/activities/modules.js';
 const MODULE_NAME = 'intentIqId';
 const PCID_EXPIRY = 365;
 
-type AllowedStorageType = 'html5' | 'cookie';
+export type AllowedStorageType = 'html5' | 'cookie';
 
 interface FirstPartyData {
   isOptedOut?: boolean;

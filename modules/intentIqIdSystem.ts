@@ -14,6 +14,7 @@ import { isCHSupported } from '../libraries/intentIqUtils/chUtils.ts';
 import { appendVrrefAndFui } from '../libraries/intentIqUtils/getRefferer.ts';
 import { getCmpData, areCmpValuesEqual, isValidValue } from '../libraries/intentIqUtils/getCmpData.ts';
 import {
+  AllowedStorageType,
   defineStorageType,
   readData,
   removeDataByKey,
@@ -194,7 +195,7 @@ let sourceMetaDataExternal: number | undefined;
 let globalName = '';
 
 let FIRST_PARTY_KEY_FINAL = FIRST_PARTY_KEY;
-let PARTNER_DATA_KEY = '';
+let PARTNER_DATA_KEY: string = '';
 let callCount = 0;
 let failCount = 0;
 let noDataCount = 0;
@@ -476,21 +477,21 @@ export const intentIqIdSubmodule = {
     const gamParameterName = configParams.gamParameterName ? configParams.gamParameterName : 'intent_iq_group';
     const groupChanged = typeof configParams.groupChanged === 'function' ? configParams.groupChanged : undefined;
     const siloEnabled = typeof configParams.siloEnabled === 'boolean' ? configParams.siloEnabled : false;
-    sourceMetaData = isStr(configParams.sourceMetaData) ? translateMetadata(configParams.sourceMetaData) : '';
+    sourceMetaData = isStr(configParams.sourceMetaData) ? translateMetadata(configParams.sourceMetaData as string) : '';
     sourceMetaDataExternal = isNumber(configParams.sourceMetaDataExternal) ? configParams.sourceMetaDataExternal : undefined;
     const additionalParams = configParams.additionalParams ? configParams.additionalParams : undefined;
     const chTimeout = Number(configParams?.chTimeout) >= 0 ? Number(configParams.chTimeout) : 10;
     PARTNER_DATA_KEY = `${FIRST_PARTY_KEY}_${configParams.partner}`;
 
-    const allowedStorage = defineStorageType((config as any).enabledStorageTypes);
-    partnerData = tryParse(readData(PARTNER_DATA_KEY, allowedStorage)) || {};
+    const allowedStorage: AllowedStorageType[] = defineStorageType((config as any).enabledStorageTypes);
+    partnerData = tryParse(readData(PARTNER_DATA_KEY, allowedStorage) as string) || {};
 
     let rrttStrtTime = 0;
     let shouldCallServer = false;
     FIRST_PARTY_KEY_FINAL = `${FIRST_PARTY_KEY}${siloEnabled ? '_p_' + configParams.partner : ''}`;
     const cmpData = getCmpData();
     const gdprDetected = cmpData.gdprString;
-    firstPartyData = tryParse(readData(FIRST_PARTY_KEY_FINAL, allowedStorage));
+    firstPartyData = tryParse(readData(FIRST_PARTY_KEY_FINAL, allowedStorage) as string);
     actualABGroup = defineABTestingGroup(configParams, partnerData?.terminationCause);
     if (groupChanged) groupChanged(actualABGroup, partnerData?.terminationCause);
     const currentBrowserLowerCase = detectBrowser();
