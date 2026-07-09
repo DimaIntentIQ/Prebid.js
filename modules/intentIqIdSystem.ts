@@ -35,8 +35,6 @@ import { decryptData, encryptData } from '../libraries/intentIqUtils/cryptionUti
 import { defineABTestingGroup } from '../libraries/intentIqUtils/defineABTestingGroupUtils.ts';
 import { setKeyValueOn } from '../libraries/gptUtils/gptUtils.js';
 
-import type { IdProviderSpec } from './userId/spec';
-
 
 export type IntentIqIdSystemModuleName = 'intentIqId';
 
@@ -492,11 +490,16 @@ export const intentIqIdSubmodule = {
     const cmpData = getCmpData();
     const gdprDetected = cmpData.gdprString;
     firstPartyData = tryParse(readData(FIRST_PARTY_KEY_FINAL, allowedStorage) as string);
-    actualABGroup = defineABTestingGroup(configParams, partnerData?.terminationCause);
-    if (groupChanged) groupChanged(actualABGroup, partnerData?.terminationCause);
     const currentBrowserLowerCase = detectBrowser();
     const browserBlackList = typeof configParams.browserBlackList === 'string' ? configParams.browserBlackList.toLowerCase() : '';
     const isBlacklisted = browserBlackList?.includes(currentBrowserLowerCase);
+
+    if (!isBlacklisted) {
+      actualABGroup = defineABTestingGroup(configParams, partnerData?.terminationCause);
+      if (groupChanged) groupChanged(actualABGroup, partnerData?.terminationCause);
+    } else {
+      actualABGroup = undefined;
+    }
     let newUser = false;
 
     setGamReporting(gamObjectReference, gamParameterName, actualABGroup, isBlacklisted);
@@ -709,10 +712,13 @@ export const intentIqIdSubmodule = {
 
             if ('tc' in respJson) {
               partnerData.terminationCause = respJson.tc;
-              actualABGroup = defineABTestingGroup(configParams, respJson.tc,);
 
-              if (gamObjectReference) setGamReporting(gamObjectReference, gamParameterName, actualABGroup);
-              if (groupChanged) groupChanged(actualABGroup, partnerData?.terminationCause);
+              if (!isBlacklisted) {
+                actualABGroup = defineABTestingGroup(configParams, respJson.tc);
+
+                if (gamObjectReference) setGamReporting(gamObjectReference, gamParameterName, actualABGroup);
+                if (groupChanged) groupChanged(actualABGroup, partnerData?.terminationCause);
+              }
             }
             if ('isOptedOut' in respJson) {
               if (respJson.isOptedOut !== firstPartyData.isOptedOut) {
