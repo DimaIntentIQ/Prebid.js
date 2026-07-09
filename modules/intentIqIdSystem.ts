@@ -32,20 +32,11 @@ import { SYNC_KEY } from '../libraries/intentIqUtils/getSyncKey.ts';
 import { getIiqServerAddress, iiqPixelServerAddress } from '../libraries/intentIqUtils/intentIqConfig.ts';
 import { handleAdditionalParams } from '../libraries/intentIqUtils/handleAdditionalParams.ts';
 import { decryptData, encryptData } from '../libraries/intentIqUtils/cryptionUtils.ts';
-import { defineABTestingGroup } from '../libraries/intentIqUtils/defineABTestingGroupUtils.ts';
+import { defineABTestingGroup, IntentIqABConfigSource } from '../libraries/intentIqUtils/defineABTestingGroupUtils.ts';
 import { setKeyValueOn } from '../libraries/gptUtils/gptUtils.js';
 
 
 export type IntentIqIdSystemModuleName = 'intentIqId';
-
-/**
- * A/B testing configuration source — controls how the test group is assigned.
- * - `'percentage'`  — random assignment based on `abPercentage`
- * - `'group'`       — fixed group supplied via the `group` param
- * - `'IIQServer'`   — server-driven assignment (default)
- * - `'disabled'`    — A/B testing disabled; always use IIQ
- */
-export type IntentIqABConfigSource = 'percentage' | 'group' | 'IIQServer' | 'disabled';
 
 export interface IntentIqIdSystemParams {
   /**

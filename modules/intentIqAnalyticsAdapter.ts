@@ -16,9 +16,8 @@ import {
 import { reportingServerAddress } from '../libraries/intentIqUtils/intentIqConfig.js';
 import { handleAdditionalParams } from '../libraries/intentIqUtils/handleAdditionalParams.js';
 import { gamPredictionReport } from '../libraries/intentIqUtils/gamPredictionReport.js';
-import { defineABTestingGroup } from '../libraries/intentIqUtils/defineABTestingGroupUtils.js';
+import { defineABTestingGroup, IntentIqABConfigSource } from '../libraries/intentIqUtils/defineABTestingGroupUtils.js';
 import { getGlobal } from '../src/prebidGlobal.js';
-import { IntentIqABConfigSource } from './intentIqIdSystem.js';
 
 /**
  * Payload passed to `window.intentIqAnalyticsAdapter_<partnerId>.reportExternalWin()`.
