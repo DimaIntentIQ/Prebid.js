@@ -35,7 +35,6 @@ import { decryptData, encryptData } from '../libraries/intentIqUtils/cryptionUti
 import { defineABTestingGroup, IntentIqABConfigSource } from '../libraries/intentIqUtils/defineABTestingGroupUtils.ts';
 import { setKeyValueOn } from '../libraries/gptUtils/gptUtils.js';
 
-
 export type IntentIqIdSystemModuleName = 'intentIqId';
 
 export interface IntentIqIdSystemParams {
@@ -430,12 +429,6 @@ export const intentIqIdSubmodule = {
     return value && INVALID_ID !== value ? { 'intentIqId': value } : undefined;
   },
 
-  /**
-   * performs action to obtain id and return a value in the callback's response argument
-   * @function
-   * @param {SubmoduleConfig} [config]
-   * @returns {IdResponse|undefined}
-   */
   getId(config) {
     const configParams: IntentIqIdSystemParams = (config.params ?? {}) as unknown as IntentIqIdSystemParams;
 

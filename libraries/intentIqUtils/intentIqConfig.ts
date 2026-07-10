@@ -50,7 +50,7 @@ export const reportingServerAddress = (
   reportEndpoint?: string,
   region?: string
 ): string => {
-  if (typeof reportEndpoint === 'string') {
+  if (reportEndpoint && typeof reportEndpoint === 'string') {
     return reportEndpoint;
   }
 

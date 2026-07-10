@@ -8,10 +8,8 @@ export function appendSPData(
 ): string {
   const spdParam = partnerData?.spd
     ? encodeURIComponent(
-        typeof partnerData.spd === 'object'
-          ? JSON.stringify(partnerData.spd)
-          : partnerData.spd
-      )
+      typeof partnerData.spd === 'object' ? JSON.stringify(partnerData.spd) : partnerData.spd
+    )
     : '';
 
   if (!spdParam) {
