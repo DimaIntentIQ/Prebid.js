@@ -22,16 +22,6 @@ interface ABTestingConfig {
   group?: string;
 }
 
-
-/**
- * A/B testing configuration source — controls how the test group is assigned.
- * - `'percentage'`  — random assignment based on `abPercentage`
- * - `'group'`       — fixed group supplied via the `group` param
- * - `'IIQServer'`   — server-driven assignment (default)
- * - `'disabled'`    — A/B testing disabled; always use IIQ
- */
-export type IntentIqABConfigSource = 'percentage' | 'group' | 'IIQServer' | 'disabled';
-
 /**
  * Fix percentage if provided some incorrect data
  * clampPct(150) => 100

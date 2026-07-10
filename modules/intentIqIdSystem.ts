@@ -699,6 +699,7 @@ export const intentIqIdSubmodule = {
 
               if (!isBlacklisted) {
                 actualABGroup = defineABTestingGroup(configParams, respJson.tc);
+                actualABGroup = defineABTestingGroup(configParams, respJson.tc,);
 
                 if (gamObjectReference) setGamReporting(gamObjectReference, gamParameterName, actualABGroup);
                 if (groupChanged) groupChanged(actualABGroup, partnerData?.terminationCause);
