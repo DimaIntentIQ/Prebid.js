@@ -696,14 +696,10 @@ export const intentIqIdSubmodule = {
 
             if ('tc' in respJson) {
               partnerData.terminationCause = respJson.tc;
+              actualABGroup = defineABTestingGroup(configParams, respJson.tc,);
 
-              if (!isBlacklisted) {
-                actualABGroup = defineABTestingGroup(configParams, respJson.tc);
-                actualABGroup = defineABTestingGroup(configParams, respJson.tc,);
-
-                if (gamObjectReference) setGamReporting(gamObjectReference, gamParameterName, actualABGroup);
-                if (groupChanged) groupChanged(actualABGroup, partnerData?.terminationCause);
-              }
+              if (gamObjectReference) setGamReporting(gamObjectReference, gamParameterName, actualABGroup);
+              if (groupChanged) groupChanged(actualABGroup, partnerData?.terminationCause);
             }
             if ('isOptedOut' in respJson) {
               if (respJson.isOptedOut !== firstPartyData.isOptedOut) {
