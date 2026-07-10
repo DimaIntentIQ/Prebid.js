@@ -5,6 +5,15 @@ import {
   AB_CONFIG_SOURCE,
 } from '../intentIqConstants/intentIqConstants.js';
 
+/**
+ * A/B testing configuration source — controls how the test group is assigned.
+ * - `'percentage'`  — random assignment based on `abPercentage`
+ * - `'group'`       — fixed group supplied via the `group` param
+ * - `'IIQServer'`   — server-driven assignment (default)
+ * - `'disabled'`    — A/B testing disabled; always use IIQ
+ */
+export type IntentIqABConfigSource = 'percentage' | 'group' | 'IIQServer' | 'disabled';
+
 type ABGroup = typeof WITH_IIQ | typeof WITHOUT_IIQ;
 
 interface ABTestingConfig {

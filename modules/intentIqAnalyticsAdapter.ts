@@ -3,22 +3,21 @@ import adapter from '../libraries/analyticsAdapter/AnalyticsAdapter.js';
 import adapterManager from '../src/adapterManager.js';
 import { ajax } from '../src/ajax.js';
 import { EVENTS } from '../src/constants.js';
-import { detectBrowser } from '../libraries/intentIqUtils/detectBrowserUtils.js';
-import { appendSPData } from '../libraries/intentIqUtils/urlUtils.js';
-import { appendVrrefAndFui, getCurrentUrl, getRelevantRefferer } from '../libraries/intentIqUtils/getRefferer.js';
-import { getCmpData, areCmpValuesEqual, isValidValue } from '../libraries/intentIqUtils/getCmpData.js';
-import { getUnitPosition } from '../libraries/intentIqUtils/getUnitPosition.js';
+import { detectBrowser } from '../libraries/intentIqUtils/detectBrowserUtils.ts';
+import { appendSPData } from '../libraries/intentIqUtils/urlUtils.ts';
+import { appendVrrefAndFui, getCurrentUrl, getRelevantRefferer } from '../libraries/intentIqUtils/getRefferer.ts';
+import { getCmpData, areCmpValuesEqual, isValidValue } from '../libraries/intentIqUtils/getCmpData.ts';
+import { getUnitPosition } from '../libraries/intentIqUtils/getUnitPosition.ts';
 import {
   VERSION,
   PREBID,
   WITH_IIQ
-} from '../libraries/intentIqConstants/intentIqConstants.js';
-import { reportingServerAddress } from '../libraries/intentIqUtils/intentIqConfig.js';
-import { handleAdditionalParams } from '../libraries/intentIqUtils/handleAdditionalParams.js';
-import { gamPredictionReport } from '../libraries/intentIqUtils/gamPredictionReport.js';
-import { defineABTestingGroup } from '../libraries/intentIqUtils/defineABTestingGroupUtils.js';
+} from '../libraries/intentIqConstants/intentIqConstants.ts';
+import { reportingServerAddress } from '../libraries/intentIqUtils/intentIqConfig.ts';
+import { handleAdditionalParams } from '../libraries/intentIqUtils/handleAdditionalParams.ts';
+import { gamPredictionReport } from '../libraries/intentIqUtils/gamPredictionReport.ts';
+import { defineABTestingGroup, IntentIqABConfigSource } from '../libraries/intentIqUtils/defineABTestingGroupUtils.ts';
 import { getGlobal } from '../src/prebidGlobal.js';
-import { IntentIqABConfigSource } from './intentIqIdSystem.js';
 
 /**
  * Payload passed to `window.intentIqAnalyticsAdapter_<partnerId>.reportExternalWin()`.

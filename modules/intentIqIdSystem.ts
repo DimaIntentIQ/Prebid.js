@@ -32,22 +32,10 @@ import { SYNC_KEY } from '../libraries/intentIqUtils/getSyncKey.ts';
 import { getIiqServerAddress, iiqPixelServerAddress } from '../libraries/intentIqUtils/intentIqConfig.ts';
 import { handleAdditionalParams } from '../libraries/intentIqUtils/handleAdditionalParams.ts';
 import { decryptData, encryptData } from '../libraries/intentIqUtils/cryptionUtils.ts';
-import { defineABTestingGroup } from '../libraries/intentIqUtils/defineABTestingGroupUtils.ts';
+import { defineABTestingGroup, IntentIqABConfigSource } from '../libraries/intentIqUtils/defineABTestingGroupUtils.ts';
 import { setKeyValueOn } from '../libraries/gptUtils/gptUtils.js';
 
-import type { IdProviderSpec } from './userId/spec';
-
-
 export type IntentIqIdSystemModuleName = 'intentIqId';
-
-/**
- * A/B testing configuration source — controls how the test group is assigned.
- * - `'percentage'`  — random assignment based on `abPercentage`
- * - `'group'`       — fixed group supplied via the `group` param
- * - `'IIQServer'`   — server-driven assignment (default)
- * - `'disabled'`    — A/B testing disabled; always use IIQ
- */
-export type IntentIqABConfigSource = 'percentage' | 'group' | 'IIQServer' | 'disabled';
 
 export interface IntentIqIdSystemParams {
   /**
@@ -441,12 +429,6 @@ export const intentIqIdSubmodule = {
     return value && INVALID_ID !== value ? { 'intentIqId': value } : undefined;
   },
 
-  /**
-   * performs action to obtain id and return a value in the callback's response argument
-   * @function
-   * @param {SubmoduleConfig} [config]
-   * @returns {IdResponse|undefined}
-   */
   getId(config) {
     const configParams: IntentIqIdSystemParams = (config.params ?? {}) as unknown as IntentIqIdSystemParams;
 
