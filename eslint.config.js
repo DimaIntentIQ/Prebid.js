@@ -285,6 +285,8 @@ module.exports = [
     rules: {
       'no-template-curly-in-string': 'off',
       'no-unused-expressions': 'off',
+      '@typescript-eslint/no-unused-expressions': 'off',
+      'chai-friendly/no-unused-expressions': 'error',
       'chai-friendly/no-unused-expressions': 'error',
       // tests were not subject to many rules and they are now a nightmare. rules below this line should be removed over time
       'no-undef': 'off',
