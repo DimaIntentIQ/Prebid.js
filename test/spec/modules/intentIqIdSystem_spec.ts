@@ -420,6 +420,7 @@ describe('IntentIQ tests', function () {
     const originalPubads = mockGamObject.pubads;
     const setTargetingSpy = sinon.spy();
 
+    
     mockGamObject.pubads = function (...args) {
       const obj = { ...originalPubads.apply(this, args) };
 
