@@ -430,7 +430,7 @@ export const intentIqIdSubmodule = {
   },
 
   getId(config) {
-    const configParams: IntentIqIdSystemParams = (config.params ?? {}) as unknown as IntentIqIdSystemParams;
+    const configParams: IntentIqIdSystemParams = (config?.params ?? {}) as unknown as IntentIqIdSystemParams;
 
     const firePartnerCallback = (): void => {
       if (configParams.callback && !callbackFired) {
@@ -485,13 +485,6 @@ export const intentIqIdSubmodule = {
       actualABGroup = undefined;
     }
     let newUser = false;
-
-    if (!isBlacklisted) {
-      actualABGroup = defineABTestingGroup(configParams, partnerData?.terminationCause);
-      if (groupChanged) groupChanged(actualABGroup, partnerData?.terminationCause);
-    } else {
-      actualABGroup = undefined;
-    }
 
     setGamReporting(gamObjectReference, gamParameterName, actualABGroup, isBlacklisted);
 
@@ -835,7 +828,7 @@ export const intentIqIdSubmodule = {
   eids: {
     [MODULE_NAME]: {
       source: 'intentiq.com',
-      atype: '1',
+      atype: 1 as any,
       getSource: function (data: any) {
         return data.source;
       },

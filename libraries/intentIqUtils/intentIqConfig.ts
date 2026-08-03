@@ -29,21 +29,21 @@ function buildServerAddress(baseName: string, region?: string): string {
 export const getIiqServerAddress = (
   configParams: ServerConfig = {}
 ): string => {
-  if (typeof configParams.iiqServerAddress === 'string') {
+  if (typeof configParams?.iiqServerAddress === 'string') {
     return configParams.iiqServerAddress;
   }
 
-  return buildServerAddress('api', configParams.region);
+  return buildServerAddress('api', configParams?.region);
 };
 
 export const iiqPixelServerAddress = (
   configParams: ServerConfig = {}
 ): string => {
-  if (typeof configParams.iiqPixelServerAddress === 'string') {
+  if (typeof configParams?.iiqPixelServerAddress === 'string') {
     return configParams.iiqPixelServerAddress;
   }
 
-  return buildServerAddress('sync', configParams.region);
+  return buildServerAddress('sync', configParams?.region);
 };
 
 export const reportingServerAddress = (
