@@ -486,6 +486,13 @@ export const intentIqIdSubmodule = {
     }
     let newUser = false;
 
+    if (!isBlacklisted) {
+      actualABGroup = defineABTestingGroup(configParams, partnerData?.terminationCause);
+      if (groupChanged) groupChanged(actualABGroup, partnerData?.terminationCause);
+    } else {
+      actualABGroup = undefined;
+    }
+
     setGamReporting(gamObjectReference, gamParameterName, actualABGroup, isBlacklisted);
 
     callbackTimeoutID = setTimeout(() => {
@@ -661,7 +668,7 @@ export const intentIqIdSubmodule = {
     url = appendSPData(url, partnerData);
     url += '&source=' + PREBID;
     url += '&ABTestingConfigurationSource=' + configParams.ABTestingConfigurationSource;
-    url += '&abtg=' + encodeURIComponent(actualABGroup);
+    url += '&abtg=' + encodeURIComponent(actualABGroup as string);
 
     // Add vrref and fui to the URL
     url = appendVrrefAndFui(url, configParams.domainName);
