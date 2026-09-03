@@ -29,6 +29,9 @@ import {
 } from '../libraries/intentIqConstants/intentIqConstants.ts';
 import { getIiqServerAddress } from '../libraries/intentIqUtils/intentIqConfig.ts';
 import { decryptData, encryptData } from '../libraries/intentIqUtils/cryptionUtils.ts';
+// Local-only performance instrumentation for A/B build comparison (see iiqPerfAgent.ts).
+// Never sends data anywhere; safe to leave in a build under test on a live page.
+import { markVrCallStart, markVrCallDuration, markEidsReady } from '../libraries/intentIqUtils/iiqPerfAgent.ts';
 // the augmentation below only applies where the spec is part of the program; naming a type from it
 // in this module's public interface puts it there for anyone who imports this module
 import type { UserIdConfig } from './userId/spec.ts';
@@ -269,6 +272,7 @@ export const intentIqIdSubmodule = {
         let data = runtimeEids;
         if (data?.eids?.length === 1 && typeof data.eids[0] === 'string') data = data.eids[0];
         configParams.callback(data);
+        markEidsReady();
       }
       updateGlobalObj();
     };
@@ -460,6 +464,7 @@ export const intentIqIdSubmodule = {
         success: (response: any) => {
           if (rrttStrtTime && rrttStrtTime > 0) {
             partnerData.rrtt = Date.now() - rrttStrtTime;
+            markVrCallDuration(partnerData.rrtt);
           }
           const respJson = tryParse(response) as any;
           // If response is a valid json and should save is true
@@ -573,6 +578,7 @@ export const intentIqIdSubmodule = {
       clearCountersAndStore(allowedStorage, partnerData);
 
       rrttStrtTime = Date.now();
+      markVrCallStart();
 
       const sendAjax = (uh: string) => {
         if (uh) url += '&uh=' + encodeURIComponent(uh);
