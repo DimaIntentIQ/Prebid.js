@@ -164,14 +164,15 @@ export function recordGamImpressionViewable(): void {
   } catch (e) { /* best-effort only */ }
 }
 
-function attachPbjsBidWonListener(): void {
+function attachPbjsBidWonListener(retriesLeft = 40): void {
   try {
     const pbjs = (window as any).pbjs;
     if (pbjs && typeof pbjs.onEvent === 'function') {
       pbjs.onEvent('bidWon', () => recordBidWon());
-    } else {
-      // pbjs not global yet (unlikely from inside a pbjs module, but be defensive)
-      setTimeout(attachPbjsBidWonListener, 250);
+    } else if (retriesLeft > 0) {
+      // pbjs not global yet (unlikely from inside a pbjs module, but be defensive).
+      // Bounded so this can never spin forever (e.g. under fake timers in tests).
+      setTimeout(() => attachPbjsBidWonListener(retriesLeft - 1), 250);
     }
   } catch (e) { /* best-effort only */ }
 }
