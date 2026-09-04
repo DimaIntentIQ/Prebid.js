@@ -1,22 +1,18 @@
-import { isPlainObject, logError, logInfo } from '../src/utils.js';
+import { logError, logInfo } from '../src/utils.js';
 import adapter from '../libraries/analyticsAdapter/AnalyticsAdapter.js';
 import adapterManager from '../src/adapterManager.js';
 import { ajax } from '../src/ajax.js';
-import { EVENTS } from '../src/constants.js';
-import { detectBrowser } from '../libraries/intentIqUtils/detectBrowserUtils.ts';
 import { appendSPData } from '../libraries/intentIqUtils/urlUtils.ts';
-import { appendVrrefAndFui, getCurrentUrl, getRelevantRefferer } from '../libraries/intentIqUtils/getRefferer.ts';
-import { getCmpData, areCmpValuesEqual, isValidValue } from '../libraries/intentIqUtils/getCmpData.ts';
+import { appendVrrefAndFui, getCurrentUrl } from '../libraries/intentIqUtils/getRefferer.ts';
+import { getCmpData, isValidValue } from '../libraries/intentIqUtils/getCmpData.ts';
 import { getUnitPosition } from '../libraries/intentIqUtils/getUnitPosition.ts';
 import {
   VERSION,
   PREBID,
-  WITH_IIQ
+  WITH_IIQ,
+  WITHOUT_IIQ
 } from '../libraries/intentIqConstants/intentIqConstants.ts';
 import { reportingServerAddress } from '../libraries/intentIqUtils/intentIqConfig.ts';
-import { handleAdditionalParams } from '../libraries/intentIqUtils/handleAdditionalParams.ts';
-import { gamPredictionReport } from '../libraries/intentIqUtils/gamPredictionReport.ts';
-import { defineABTestingGroup, IntentIqABConfigSource } from '../libraries/intentIqUtils/defineABTestingGroupUtils.ts';
 import { getGlobal } from '../src/prebidGlobal.js';
 
 /**
@@ -91,98 +87,12 @@ export interface IntentIqAnalyticsAdapterOptions {
   partner: number;
 
   /**
-   * Set to `true` to allow manual win reporting via
-   * `window.intentIqAnalyticsAdapter_<partnerId>.reportExternalWin()`.
-   * Defaults to `false`.
-   */
-  manualWinReportEnabled?: boolean;
-
-  /**
-   * Enable GAM predict-score reporting. Defaults to `false`.
-   */
-  gamPredictReporting?: boolean;
-
-  /**
-   * HTTP method used to send reports. Defaults to `'GET'`.
-   */
-  reportMethod?: 'GET' | 'POST';
-
-  /**
-   * Override for the IntentIQ reporting server base URL.
-   */
-  reportingServerAddress?: string;
-
-  /**
-   * Geo-region routing hint for the reporting server.
-   */
-  region?: string;
-
-  /**
-   * Controls how the `placementId` field in reports is populated:
-   * 1 = adUnitCode then placementId (default)
-   * 2 = placementId then adUnitCode
-   * 3 = adUnitCode only
-   * 4 = placementId only
-   */
-  adUnitConfig?: 1 | 2 | 3 | 4;
-
-  /**
-   * Determines how the A/B test group is assigned. Defaults to `'IIQServer'`.
-   */
-  ABTestingConfigurationSource?: IntentIqABConfigSource;
-
-  /**
-   * Explicit A/B group override. Only used when
-   * `ABTestingConfigurationSource` is `'group'`.
+   * Explicit A/B group override. This build always assigns the A/B test
+   * group directly from `group` (equivalent to a fixed
+   * `ABTestingConfigurationSource: 'group'`), independent of the server
+   * termination cause.
    */
   group?: 'A' | 'B';
-
-  /**
-   * Percentage of users placed in the WITH_IIQ cohort (0–100). Defaults to 95.
-   */
-  abPercentage?: number;
-
-  /**
-   * Comma-separated list of browser names (lowercase) excluded from reporting,
-   * e.g. `'chrome,safari'`.
-   */
-  browserBlackList?: string;
-
-  /**
-   * Publisher domain name appended to report URLs.
-   */
-  domainName?: string;
-
-  /**
-   * Custom parameters appended to report URLs, each routed to the requests named by its
-   * `destination`.
-   */
-  additionalParams?: {
-    /**
-     * Name of the parameter, sent prefixed with `agp_`.
-     */
-    parameterName: string;
-    /**
-     * Value to assign to the parameter.
-     */
-    parameterValue: string | number;
-    /**
-     * Whether to send the parameter with, in order, the sync request, the VR request and the win
-     * report. Each entry is 1 to send and 0 to omit.
-     */
-    destination: (0 | 1)[];
-  }[];
-
-  /**
-   * When `true`, first-party data is stored under a partner-specific key.
-   */
-  siloEnabled?: boolean;
-
-  /**
-   * Reference to the GAM `googletag.pubads()` object for predict-score
-   * reporting.
-   */
-  gamObjectReference?: Record<string, unknown>;
 }
 
 declare module '../libraries/analyticsAdapter/AnalyticsAdapter' {
@@ -200,9 +110,6 @@ const pbjs: any = getGlobal();
 export const REPORTER_ID = Date.now() + '_' + getRandom(0, 1000);
 let globalName: string | undefined;
 let identityGlobalName: string | undefined;
-let alreadySubscribedOnGAM = false;
-let reportList: Record<string, Record<string, number>> = {};
-let cleanReportsID: ReturnType<typeof setTimeout> | undefined;
 let iiqConfig: any;
 
 const PARAMS_NAMES: Record<string, string> = {
@@ -248,10 +155,6 @@ const PARAMS_NAMES: Record<string, string> = {
 
 const DEFAULT_URL = 'https://reports.intentiq.com/report';
 
-const getDataForDefineURL = () => {
-  return [iiqAnalyticsAnalyticsAdapter.initOptions.reportingServerAddress, iiqAnalyticsAnalyticsAdapter.initOptions.region];
-};
-
 const getDefaultInitOptions = () => {
   return {
     adapterConfigInitialized: false,
@@ -261,74 +164,31 @@ const getDefaultInitOptions = () => {
     dataInLs: null,
     eidl: null,
     dataIdsInitialized: false,
-    manualWinReportEnabled: false,
-    domainName: null,
-    siloEnabled: false,
-    reportMethod: null,
-    abPercentage: null,
-    userPercentage: null,
-    abTestUuid: null,
-    additionalParams: null,
-    reportingServerAddress: '',
-    region: ''
+    abTestUuid: null
   };
 };
 
 const iiqAnalyticsAnalyticsAdapter: any = Object.assign(adapter({ url: DEFAULT_URL, analyticsType }), {
   initOptions: getDefaultInitOptions(),
-  track({ eventType, args }: { eventType: string; args: any }) {
-    switch (eventType) {
-      case BID_WON:
-        bidWon(args);
-        break;
-      case BID_REQUESTED: {
-        if (!alreadySubscribedOnGAM && shouldSubscribeOnGAM()) {
-          alreadySubscribedOnGAM = true;
-          gamPredictionReport(iiqConfig?.gamObjectReference, bidWon);
-        }
-        const fpdFromGlobalObject = (window as any)[identityGlobalName as string]?.firstPartyData;
-        if (fpdFromGlobalObject) {
-          const currentCmpData = getCmpData();
-          const hasCmpMismatch = ['gdprString', 'gppString', 'uspString'].some((field: string) =>
-            !areCmpValuesEqual(fpdFromGlobalObject[field], currentCmpData[field])
-          );
-          if (hasCmpMismatch) {
-            pbjs.refreshUserIds({ submoduleNames: ['intentIqId'] });
-          }
-        }
-        break;
-      }
-      default:
-        break;
-    }
+  track() {
+    // Intentional no-op: this build fixes manualWinReportEnabled to true, so BID_WON
+    // reports are only sent via window.intentIqAnalyticsAdapter_<partnerId>.reportExternalWin().
+    // Keeping this override in place prevents the base AnalyticsAdapter's default
+    // endpoint auto-send behavior for every tracked event.
   }
 });
-
-// Events needed
-const { BID_WON, BID_REQUESTED } = EVENTS;
 
 function initAdapterConfig(config: any): void {
   if (iiqAnalyticsAnalyticsAdapter.initOptions.adapterConfigInitialized) return;
 
   const options = config?.options || {};
   iiqConfig = options;
-  const { manualWinReportEnabled, gamPredictReporting, reportMethod, reportingServerAddress, region, adUnitConfig, partner, ABTestingConfigurationSource, browserBlackList, domainName, additionalParams } = options;
-  iiqAnalyticsAnalyticsAdapter.initOptions.manualWinReportEnabled =
-            manualWinReportEnabled || false;
-  iiqAnalyticsAnalyticsAdapter.initOptions.reportMethod = parseReportingMethod(reportMethod);
-  iiqAnalyticsAnalyticsAdapter.initOptions.gamPredictReporting = typeof gamPredictReporting === 'boolean' ? gamPredictReporting : false;
-  iiqAnalyticsAnalyticsAdapter.initOptions.reportingServerAddress = typeof reportingServerAddress === 'string' ? reportingServerAddress : '';
-  iiqAnalyticsAnalyticsAdapter.initOptions.region = typeof region === 'string' ? region : '';
-  iiqAnalyticsAnalyticsAdapter.initOptions.adUnitConfig = typeof adUnitConfig === 'number' ? adUnitConfig : 1;
-  iiqAnalyticsAnalyticsAdapter.initOptions.configSource = ABTestingConfigurationSource;
-  iiqAnalyticsAnalyticsAdapter.initOptions.currentGroup = defineABTestingGroup(options);
+  const { partner, group } = options;
+  // ABTestingConfigurationSource is fixed to 'group' for this build: the group is
+  // taken directly from `group`, independent of the server termination cause.
+  iiqAnalyticsAnalyticsAdapter.initOptions.currentGroup =
+    typeof group === 'string' && group.toUpperCase() === WITHOUT_IIQ ? WITHOUT_IIQ : WITH_IIQ;
   iiqAnalyticsAnalyticsAdapter.initOptions.idModuleConfigInitialized = true;
-  iiqAnalyticsAnalyticsAdapter.initOptions.browserBlackList =
-        typeof browserBlackList === 'string'
-          ? browserBlackList.toLowerCase()
-          : '';
-  iiqAnalyticsAnalyticsAdapter.initOptions.domainName = domainName || '';
-  iiqAnalyticsAnalyticsAdapter.initOptions.additionalParams = additionalParams || null;
   if (!partner) {
     logError('IIQ ANALYTICS -> partner ID is missing');
     iiqAnalyticsAnalyticsAdapter.initOptions.partner = -1;
@@ -363,92 +223,31 @@ function receivePartnerData(): boolean | void {
       iiqAnalyticsAnalyticsAdapter.initOptions.currentGroup = actualABGroup;
     }
     iiqAnalyticsAnalyticsAdapter.initOptions.clientHints = clientHints;
-
-    const { abPercentage, userProvidedAbPercentage } = (window as any)[identityGlobalName as string];
-    if (abPercentage !== undefined) {
-      iiqAnalyticsAnalyticsAdapter.initOptions.abPercentage = abPercentage;
-    }
-    iiqAnalyticsAnalyticsAdapter.initOptions.userPercentage = userProvidedAbPercentage;
   } catch (e) {
     logError(e);
     return false;
   }
 }
 
-function shouldSubscribeOnGAM(): boolean {
-  if (!iiqConfig?.gamObjectReference || !isPlainObject(iiqConfig.gamObjectReference)) return false;
-  const partnerData = (window as any)[identityGlobalName as string]?.partnerData;
-
-  if (partnerData) {
-    return partnerData.gpr || (!('gpr' in partnerData) && iiqAnalyticsAnalyticsAdapter.initOptions.gamPredictReporting);
-  }
-  return false;
-}
-
-function shouldSendReport(isReportExternal?: boolean): boolean {
-  return (
-    (isReportExternal &&
-            iiqAnalyticsAnalyticsAdapter.initOptions.manualWinReportEnabled &&
-            !shouldSubscribeOnGAM()) ||
-        (!isReportExternal && !iiqAnalyticsAnalyticsAdapter.initOptions.manualWinReportEnabled)
-  );
-}
-
-export function restoreReportList() {
-  reportList = {};
-}
-
-function bidWon(args: any, isReportExternal?: boolean): boolean | void {
-  if (
-    isNaN(iiqAnalyticsAnalyticsAdapter.initOptions.partner)
-  ) {
+function bidWon(args: any): boolean | void {
+  if (isNaN(iiqAnalyticsAnalyticsAdapter.initOptions.partner)) {
     iiqAnalyticsAnalyticsAdapter.initOptions.partner = -1;
   }
-  const currentBrowserLowerCase = detectBrowser();
-  if (iiqAnalyticsAnalyticsAdapter.initOptions.browserBlackList?.includes(currentBrowserLowerCase)) {
-    logError('IIQ ANALYTICS -> Browser is in blacklist!');
-    return;
+  const success = receivePartnerData();
+  const preparedPayload = preparePayload(args);
+  if (!preparedPayload) return false;
+  if (success === false) {
+    preparedPayload[PARAMS_NAMES.terminationCause] = -1;
   }
-
-  if (shouldSendReport(isReportExternal)) {
-    const success = receivePartnerData();
-    const preparedPayload = preparePayload(args);
-    if (!preparedPayload) return false;
-    if (success === false) {
-      preparedPayload[PARAMS_NAMES.terminationCause] = -1;
-    }
-    const { url, method, payload } = constructFullUrl(preparedPayload);
-    if (method === 'POST') {
-      ajax(url, undefined, payload, {
-        method,
-        contentType: 'application/x-www-form-urlencoded'
-      });
-    } else {
-      ajax(url, undefined, null, { method });
-    }
-    logInfo('IIQ ANALYTICS -> BID WON');
-    return true;
-  }
-  return false;
-}
-
-function parseReportingMethod(reportMethod: unknown): 'GET' | 'POST' {
-  if (typeof reportMethod === 'string') {
-    switch (reportMethod.toUpperCase()) {
-      case 'GET':
-        return 'GET';
-      case 'POST':
-        return 'POST';
-      default:
-        return 'GET';
-    }
-  }
-  return 'GET';
+  const { url } = constructFullUrl(preparedPayload);
+  ajax(url, undefined, null, { method: 'GET' });
+  logInfo('IIQ ANALYTICS -> BID WON');
+  return true;
 }
 
 function defineGlobalVariableName(): void {
   function reportExternalWin(args: any): boolean | void {
-    return bidWon(args, true);
+    return bidWon(args);
   }
 
   const partnerId = iiqConfig?.partner || 0;
@@ -467,7 +266,7 @@ export function preparePayload(data: any): Record<string, any> | void {
   const fullUrl = getCurrentUrl();
   result[PARAMS_NAMES.partnerId] = iiqAnalyticsAnalyticsAdapter.initOptions.partner;
   result[PARAMS_NAMES.prebidVersion] = prebidVersion;
-  result[PARAMS_NAMES.referrer] = getRelevantRefferer(iiqAnalyticsAnalyticsAdapter.initOptions.domainName, fullUrl);
+  result[PARAMS_NAMES.referrer] = encodeURIComponent(fullUrl);
   result[PARAMS_NAMES.terminationCause] = iiqAnalyticsAnalyticsAdapter.initOptions.terminationCause;
   result[PARAMS_NAMES.clientType] = iiqAnalyticsAnalyticsAdapter.initOptions.clientType;
   result[PARAMS_NAMES.siteId] = iiqAnalyticsAnalyticsAdapter.initOptions.siteId;
@@ -488,31 +287,9 @@ export function preparePayload(data: any): Record<string, any> | void {
   if (iiqAnalyticsAnalyticsAdapter.initOptions.fpid?.pid) {
     result[PARAMS_NAMES.profile] = encodeURIComponent(iiqAnalyticsAnalyticsAdapter.initOptions.fpid.pid);
   }
-  if (iiqAnalyticsAnalyticsAdapter.initOptions.configSource) {
-    result[PARAMS_NAMES.ABTestingConfigurationSource] = iiqAnalyticsAnalyticsAdapter.initOptions.configSource;
-  }
-  if (iiqAnalyticsAnalyticsAdapter.initOptions.abPercentage !== null) {
-    result[PARAMS_NAMES.abPercentage] = iiqAnalyticsAnalyticsAdapter.initOptions.abPercentage;
-  }
-  if (iiqAnalyticsAnalyticsAdapter.initOptions.userPercentage !== undefined && iiqAnalyticsAnalyticsAdapter.initOptions.userPercentage !== null) {
-    result[PARAMS_NAMES.userPercentage] = iiqAnalyticsAnalyticsAdapter.initOptions.userPercentage;
-  }
+  // ABTestingConfigurationSource is fixed to 'group' for this build.
+  result[PARAMS_NAMES.ABTestingConfigurationSource] = 'group';
   prepareData(data, result);
-
-  if (shouldSubscribeOnGAM()) {
-    if (!reportList[result.placementId] || !reportList[result.placementId][result.prebidAuctionId]) {
-      reportList[result.placementId] = reportList[result.placementId]
-        ? { ...reportList[result.placementId], [result.prebidAuctionId]: 1 }
-        : { [result.prebidAuctionId]: 1 };
-      cleanReportsID = setTimeout(() => {
-        if (cleanReportsID) clearTimeout(cleanReportsID);
-        restoreReportList();
-      }, 1500); // clear object in 1.5 second after defining reporting list
-    } else {
-      logError('Duplication detected, report will be not sent');
-      return;
-    }
-  }
 
   fillEidsData(result);
 
@@ -543,41 +320,13 @@ function prepareData(data: any, result: Record<string, any>): void {
     const pos = getUnitPosition(pbjs, data.adUnitCode);
     if (typeof pos === 'number') result.pos = pos;
   }
-  if (data.size) {
-    result.size = data.size;
-  }
-  if (typeof data.pos === 'number') {
-    result.pos = data.pos;
-  } else if (data.adUnitCode) {
-    const pos = getUnitPosition(pbjs, data.adUnitCode);
-    if (typeof pos === 'number') result.pos = pos;
-  }
 
   result.prebidAuctionId = data.auctionId || data.prebidAuctionId;
 
   if (adTypeValue) result[PARAMS_NAMES.adType] = adTypeValue;
 
-  switch (iiqAnalyticsAnalyticsAdapter.initOptions.adUnitConfig) {
-    case 1:
-      // adUnitCode or placementId
-      result.placementId = data.adUnitCode || extractPlacementId(data) || '';
-      break;
-    case 2:
-      // placementId or adUnitCode
-      result.placementId = extractPlacementId(data) || data.adUnitCode || '';
-      break;
-    case 3:
-      // Only adUnitCode
-      result.placementId = data.adUnitCode || '';
-      break;
-    case 4:
-      // Only placementId
-      result.placementId = extractPlacementId(data) || '';
-      break;
-    default:
-      // Default (like in case #1)
-      result.placementId = data.adUnitCode || extractPlacementId(data) || '';
-  }
+  // adUnitConfig is fixed to the default (adUnitCode, falling back to placementId).
+  result.placementId = data.adUnitCode || extractPlacementId(data) || '';
 
   result.biddingPlatformId = data.biddingPlatformId || 1;
 
@@ -612,18 +361,15 @@ function getDefaultDataObject(): Record<string, any> {
   };
 }
 
-function constructFullUrl(data: Record<string, any>): any {
+function constructFullUrl(data: Record<string, any>): { url: string } {
   const report: string[] = [];
-  const reportMethod = iiqAnalyticsAnalyticsAdapter.initOptions.reportMethod;
   const partnerData = (window as any)[identityGlobalName as string]?.partnerData;
-  const currentBrowserLowerCase = detectBrowser();
   const partnerAuctionId = data?.partnerAuctionId;
   const encodedData = btoa(JSON.stringify(data));
   report.push(encodedData);
 
   const cmpData = getCmpData();
-  const [reportEndpoint, region] = getDataForDefineURL();
-  const baseUrl = reportingServerAddress(reportEndpoint, region);
+  const baseUrl = reportingServerAddress();
 
   let url =
         baseUrl +
@@ -654,22 +400,9 @@ function constructFullUrl(data: Record<string, any>): any {
         (cmpData.gdprApplies && isValidValue(cmpData.tcfApiVersion) ? '&tcfv=' + encodeURIComponent(cmpData.tcfApiVersion as string) : '');
 
   url = appendSPData(url, partnerData);
-  url = appendVrrefAndFui(url, iiqAnalyticsAnalyticsAdapter.initOptions.domainName);
+  url = appendVrrefAndFui(url);
+  url += '&payload=' + encodeURIComponent(JSON.stringify(report));
 
-  if (reportMethod !== 'POST') {
-    url += '&payload=' + encodeURIComponent(JSON.stringify(report));
-  }
-
-  url = handleAdditionalParams(
-    currentBrowserLowerCase,
-    url,
-    2,
-    iiqAnalyticsAnalyticsAdapter.initOptions.additionalParams
-  );
-
-  if (reportMethod === 'POST') {
-    return { url, method: 'POST', payload: JSON.stringify(report) };
-  }
   return { url };
 }
 
@@ -684,9 +417,6 @@ iiqAnalyticsAnalyticsAdapter.originDisableAnalytics = iiqAnalyticsAnalyticsAdapt
 iiqAnalyticsAnalyticsAdapter.disableAnalytics = function(): void {
   globalName = undefined;
   identityGlobalName = undefined;
-  alreadySubscribedOnGAM = false;
-  reportList = {};
-  cleanReportsID = undefined;
   iiqConfig = undefined;
   iiqAnalyticsAnalyticsAdapter.initOptions = getDefaultInitOptions();
   iiqAnalyticsAnalyticsAdapter.originDisableAnalytics();

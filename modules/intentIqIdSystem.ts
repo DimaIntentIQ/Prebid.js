@@ -5,10 +5,9 @@
  * @requires module:modules/userId
  */
 
-import { isNumber, isPlainObject, isStr, logError } from '../src/utils.js';
+import { logError } from '../src/utils.js';
 import { ajax } from '../src/ajax.js';
 import { submodule } from '../src/hook.js';
-import { detectBrowser } from '../libraries/intentIqUtils/detectBrowserUtils.ts';
 import { appendSPData } from '../libraries/intentIqUtils/urlUtils.ts';
 import { isCHSupported } from '../libraries/intentIqUtils/chUtils.ts';
 import { appendVrrefAndFui } from '../libraries/intentIqUtils/getRefferer.ts';
@@ -25,15 +24,14 @@ import {
   CLIENT_HINTS_KEY,
   FIRST_PARTY_KEY,
   GVLID,
-  VERSION, INVALID_ID, SYNC_REFRESH_MILL, META_DATA_CONSTANT, PREBID,
-  HOURS_72, CH_KEYS, DEFAULT_PERCENTAGE, WITH_IIQ
+  VERSION, INVALID_ID, PREBID,
+  HOURS_72, CH_KEYS, WITH_IIQ, WITHOUT_IIQ
 } from '../libraries/intentIqConstants/intentIqConstants.ts';
-import { SYNC_KEY } from '../libraries/intentIqUtils/getSyncKey.ts';
-import { getIiqServerAddress, iiqPixelServerAddress } from '../libraries/intentIqUtils/intentIqConfig.ts';
-import { handleAdditionalParams } from '../libraries/intentIqUtils/handleAdditionalParams.ts';
+import { getIiqServerAddress } from '../libraries/intentIqUtils/intentIqConfig.ts';
 import { decryptData, encryptData } from '../libraries/intentIqUtils/cryptionUtils.ts';
-import { defineABTestingGroup, IntentIqABConfigSource } from '../libraries/intentIqUtils/defineABTestingGroupUtils.ts';
-import { setKeyValueOn } from '../libraries/gptUtils/gptUtils.js';
+// Local-only performance instrumentation for A/B build comparison (see iiqPerfAgent.ts).
+// Never sends data anywhere; safe to leave in a build under test on a live page.
+import { markVrCallStart, markVrCallDuration, markEidsReady } from '../libraries/intentIqUtils/iiqPerfAgent.ts';
 // the augmentation below only applies where the spec is part of the program; naming a type from it
 // in this module's public interface puts it there for anyone who imports this module
 import type { UserIdConfig } from './userId/spec.ts';
@@ -48,8 +46,8 @@ export type IntentIqIdSystemParams = {
 
   /**
    * Invoked when the identity lookup completes or times out.
-   * Receives the resolved EID payload or an empty string when the browser is
-   * blacklisted or the user is opted out.
+   * Receives the resolved EID payload or an empty string when the user is
+   * opted out.
    */
   callback?: (data: { eids: unknown[] } | string) => void;
 
@@ -60,76 +58,12 @@ export type IntentIqIdSystemParams = {
   timeoutInMillis?: number;
 
   /**
-   * Comma-separated list of browser names (lowercase) that should be
-   * excluded from identity resolution, e.g. `'chrome,safari'`.
-   */
-  browserBlackList?: string;
-
-  /**
-   * Publisher domain name, used to build the referrer URL parameter.
-   */
-  domainName?: string;
-
-  /**
-   * When `true`, first-party data is stored under a partner-specific key so
-   * multiple IntentIQ configurations on the same page do not collide.
-   */
-  siloEnabled?: boolean;
-
-  /**
-   * Called whenever the resolved A/B group changes.
-   * Receives the new group (`'A'` | `'B'`) and the server termination-cause
-   * code when available.
-   */
-  groupChanged?: (group: 'A' | 'B', terminationCause?: number) => void;
-
-  /**
-   * Reference to the GAM `googletag.pubads()` object for automatic targeting
-   * key injection.
-   */
-  gamObjectReference?: Record<string, unknown>;
-
-  /**
-   * GAM targeting key used to pass the A/B group. Defaults to
-   * `'intent_iq_group'`.
-   */
-  gamParameterName?: string;
-
-  /**
-   * Percentage of users placed in the WITH_IIQ (group A) cohort.
-   * Accepts 0–100; values outside that range are clamped. Defaults to 95.
-   * Only used when `ABTestingConfigurationSource` is `'percentage'` or
-   * `'IIQServer'` (no prior server termination cause).
-   */
-  abPercentage?: number;
-
-  /**
-   * Determines how the A/B test group is assigned. Defaults to `'IIQServer'`.
-   */
-  ABTestingConfigurationSource?: IntentIqABConfigSource;
-
-  /**
-   * Explicit A/B group override. Only used when
-   * `ABTestingConfigurationSource` is `'group'`.
+   * Explicit A/B group override. This build always assigns the A/B test
+   * group directly from `group` (equivalent to a fixed
+   * `ABTestingConfigurationSource: 'group'`), independent of the server
+   * termination cause.
    */
   group?: 'A' | 'B';
-
-  /**
-   * Human-readable metadata tag describing the integration source
-   * (e.g. `'prebid'`, `'amp'`). Translated to a numeric code internally.
-   */
-  sourceMetaData?: string;
-
-  /**
-   * Numeric metadata code for the integration source when a specific
-   * override is required.
-   */
-  sourceMetaDataExternal?: number;
-
-  /**
-   * Freeform key-value pairs appended to every pixel request.
-   */
-  additionalParams?: Record<string, string | number | boolean>;
 
   /**
    * Timeout in milliseconds for fetching Client Hints before falling back
@@ -147,11 +81,6 @@ export type IntentIqIdSystemParams = {
    * by the IntentIQ server.
    */
   partnerClientIdType?: number;
-
-  /**
-   * Partner-supplied Advertiser ID
-   */
-  pai?: string;
 };
 
 declare module './userId/spec' {
@@ -181,8 +110,6 @@ const encoderCH: Record<string, number> = {
   wow64: 7,
   fullVersionList: 8
 };
-let sourceMetaData: number | string | undefined;
-let sourceMetaDataExternal: number | undefined;
 let globalName = '';
 
 let FIRST_PARTY_KEY_FINAL = FIRST_PARTY_KEY;
@@ -196,12 +123,6 @@ let partnerData: any;
 let clientHints: string | null | undefined;
 let actualABGroup: IntentIqIdSystemParams['group'] | undefined;
 
-function getEffectiveAbPercentage(abPercentage: unknown): number {
-  const n = Number(abPercentage);
-  if (!Number.isFinite(n)) return DEFAULT_PERCENTAGE;
-  return Math.max(0, Math.min(100, n));
-}
-
 /**
  * Generate standard UUID string
  * @return {string}
@@ -214,11 +135,6 @@ function generateGUID(): string {
     return (c === 'x' ? r : (r & 0x3 | 0x8)).toString(16);
   });
   return guid;
-}
-
-function addUniquenessToUrl(url: string): string {
-  url += '&tsrnd=' + Math.floor(Math.random() * 1000) + '_' + new Date().getTime();
-  return url;
 }
 
 function appendFirstPartyData(url: string, firstPartyData: any, partnerData: any): string {
@@ -265,31 +181,6 @@ function appendCounters(url: string): string {
   return url;
 }
 
-/**
- * Translate and validate sourceMetaData
- */
-export function translateMetadata(data: string): number {
-  try {
-    const d = data.split('.');
-    return (
-      ((+d[0] * META_DATA_CONSTANT + +d[1]) * META_DATA_CONSTANT + +d[2]) * META_DATA_CONSTANT +
-      +d[3]
-    );
-  } catch (e) {
-    return NaN;
-  }
-}
-
-/**
- * Add sourceMetaData to URL if valid
- */
-function addMetaData(url: string, data: unknown): string {
-  if (typeof data !== 'number' || isNaN(data)) {
-    return url;
-  }
-  return url + '&fbp=' + data;
-}
-
 export function initializeGlobalIIQ(partnerId: number): boolean {
   if (!globalName || !(window as any)[globalName]) {
     globalName = `iiq_identity_${partnerId}`;
@@ -297,69 +188,6 @@ export function initializeGlobalIIQ(partnerId: number): boolean {
     return true;
   }
   return false;
-}
-
-export function createPixelUrl(firstPartyData: any, clientHints: string, configParams: any, partnerData: any, cmpData: any): string {
-  const browser = detectBrowser();
-
-  let url = iiqPixelServerAddress(configParams);
-  url += '/profiles_engine/ProfilesEngineServlet?at=20&mi=10&secure=1';
-  url += '&dpi=' + configParams.partner;
-  url = appendFirstPartyData(url, firstPartyData, partnerData);
-  url = appendPartnersFirstParty(url, configParams);
-  url = addUniquenessToUrl(url);
-  url += partnerData?.clientType ? '&idtype=' + partnerData.clientType : '';
-  url += VERSION ? '&jsver=' + VERSION : '';
-  if (clientHints) url += '&uh=' + encodeURIComponent(clientHints);
-  url = appendVrrefAndFui(url, configParams.domainName);
-  url = appendCMPData(url, cmpData);
-  url = addMetaData(url, sourceMetaDataExternal || sourceMetaData);
-  url = handleAdditionalParams(browser, url, 0, configParams.additionalParams);
-  url = appendSPData(url, partnerData);
-  url += '&source=' + PREBID;
-  url += actualABGroup ? '&testGroup=' + encodeURIComponent(actualABGroup) : '';
-  if (isNumber(configParams.abPercentage)) {
-    url += '&testPercentage=' + encodeURIComponent(getEffectiveAbPercentage(configParams.abPercentage));
-  }
-  url += '&isInTestGroup=' + (actualABGroup === WITH_IIQ);
-  return url;
-}
-
-function sendSyncRequest(allowedStorage: any, url: string, partner: number, firstPartyData: any, newUser: boolean): void {
-  const rawLastSyncDate = readData(SYNC_KEY(partner), allowedStorage);
-  const parsedLastSyncDate = Number(rawLastSyncDate);
-  const lastSyncDate: number | null = Number.isFinite(parsedLastSyncDate) ? parsedLastSyncDate : null;
-  const lastSyncElapsedTime = lastSyncDate === null ? null : Date.now() - lastSyncDate;
-
-  if (firstPartyData.isOptedOut) {
-    const needToDoSync = (Date.now() - (firstPartyData?.date || firstPartyData?.sCal || Date.now())) > SYNC_REFRESH_MILL;
-    if (newUser || needToDoSync) {
-      ajax(url, () => {
-      }, undefined, { method: 'GET', withCredentials: true });
-      if (firstPartyData?.date) {
-        firstPartyData.date = Date.now();
-        storeData(FIRST_PARTY_KEY_FINAL, JSON.stringify(firstPartyData), allowedStorage, firstPartyData);
-      }
-    }
-  } else if (lastSyncDate === null || (lastSyncElapsedTime !== null && lastSyncElapsedTime > SYNC_REFRESH_MILL)) {
-    storeData(SYNC_KEY(partner), Date.now() + '', allowedStorage);
-    ajax(url, () => {
-    }, undefined, { method: 'GET', withCredentials: true });
-  }
-}
-
-/**
- * Configures and updates A/B testing group in Google Ad Manager (GAM).
- *
- * @param {object} gamObjectReference - Reference to the GAM object, expected to have a `cmd` queue and `pubads()` API.
- * @param {string} gamParameterName - The name of the GAM targeting parameter where the group value will be stored.
- * @param {string} userGroup - The A/B testing group assigned to the user (e.g., 'A', 'B', or a custom value).
- */
-export function setGamReporting(gamObjectReference: any, gamParameterName: string, userGroup: any, isBlacklisted = false): void {
-  if (isBlacklisted) return;
-  if (isPlainObject(gamObjectReference) && gamObjectReference.cmd) {
-    setKeyValueOn(gamParameterName, userGroup, gamObjectReference);
-  }
 }
 
 /**
@@ -444,6 +272,7 @@ export const intentIqIdSubmodule = {
         let data = runtimeEids;
         if (data?.eids?.length === 1 && typeof data.eids[0] === 'string') data = data.eids[0];
         configParams.callback(data);
+        markEidsReady();
       }
       updateGlobalObj();
     };
@@ -460,13 +289,6 @@ export const intentIqIdSubmodule = {
     let callbackFired = false;
     let runtimeEids: any = { eids: [] };
 
-    const gamObjectReference = isPlainObject(configParams.gamObjectReference) ? configParams.gamObjectReference : undefined;
-    const gamParameterName = configParams.gamParameterName ? configParams.gamParameterName : 'intent_iq_group';
-    const groupChanged = typeof configParams.groupChanged === 'function' ? configParams.groupChanged : undefined;
-    const siloEnabled = typeof configParams.siloEnabled === 'boolean' ? configParams.siloEnabled : false;
-    sourceMetaData = isStr(configParams.sourceMetaData) ? translateMetadata(configParams.sourceMetaData as string) : '';
-    sourceMetaDataExternal = isNumber(configParams.sourceMetaDataExternal) ? configParams.sourceMetaDataExternal : undefined;
-    const additionalParams = configParams.additionalParams ? configParams.additionalParams : undefined;
     const chTimeout = Number(configParams?.chTimeout) >= 0 ? Number(configParams.chTimeout) : 10;
     PARTNER_DATA_KEY = `${FIRST_PARTY_KEY}_${configParams.partner}`;
 
@@ -475,23 +297,15 @@ export const intentIqIdSubmodule = {
 
     let rrttStrtTime = 0;
     let shouldCallServer = false;
-    FIRST_PARTY_KEY_FINAL = `${FIRST_PARTY_KEY}${siloEnabled ? '_p_' + configParams.partner : ''}`;
     const cmpData = getCmpData();
     const gdprDetected = cmpData.gdprString;
     firstPartyData = tryParse(readData(FIRST_PARTY_KEY_FINAL, allowedStorage) as string);
-    const currentBrowserLowerCase = detectBrowser();
-    const browserBlackList = typeof configParams.browserBlackList === 'string' ? configParams.browserBlackList.toLowerCase() : '';
-    const isBlacklisted = browserBlackList?.includes(currentBrowserLowerCase);
 
-    if (!isBlacklisted) {
-      actualABGroup = defineABTestingGroup(configParams, partnerData?.terminationCause);
-      if (groupChanged) groupChanged(actualABGroup, partnerData?.terminationCause);
-    } else {
-      actualABGroup = undefined;
-    }
-    let newUser = false;
-
-    setGamReporting(gamObjectReference, gamParameterName, actualABGroup, isBlacklisted);
+    // ABTestingConfigurationSource is fixed to 'group' for this build: the group
+    // is taken directly from configParams.group, independent of the server tc.
+    actualABGroup = typeof configParams.group === 'string' && configParams.group.toUpperCase() === WITHOUT_IIQ
+      ? WITHOUT_IIQ
+      : WITH_IIQ;
 
     callbackTimeoutID = setTimeout(() => {
       firePartnerCallback();
@@ -509,7 +323,6 @@ export const intentIqIdSubmodule = {
       // when opted out, pcid/pcidDate are not persisted to device, so the runtime
       // value is regenerated each session without overwriting persisted fields.
       firstPartyData = firstPartyData ? { ...firstPartyData, ...newObj } : newObj;
-      newUser = true;
       storeData(FIRST_PARTY_KEY_FINAL, JSON.stringify(firstPartyData), allowedStorage, firstPartyData);
     } else if (!firstPartyData.pcidDate) {
       firstPartyData.pcidDate = Date.now();
@@ -582,8 +395,6 @@ export const intentIqIdSubmodule = {
         (window as any)[globalName].firstPartyData = firstPartyData;
         (window as any)[globalName].clientHints = clientHints;
         (window as any)[globalName].actualABGroup = actualABGroup;
-        (window as any)[globalName].abPercentage = getEffectiveAbPercentage(configParams.abPercentage);
-        (window as any)[globalName].userProvidedAbPercentage = configParams.abPercentage;
       }
     }
 
@@ -615,29 +426,6 @@ export const intentIqIdSubmodule = {
       firePartnerCallback();
     }
 
-    function buildAndSendPixel(ch: string): void {
-      const url = createPixelUrl(firstPartyData, ch, configParams, partnerData, cmpData);
-      sendSyncRequest(allowedStorage, url, configParams.partner, firstPartyData, newUser);
-    }
-
-    // Check if current browser is in blacklist
-    if (isBlacklisted) {
-      logError('User ID - intentIqId submodule: browser is in blacklist! Data will be not provided.');
-      if (configParams.callback) configParams.callback('');
-
-      if (chSupported) {
-        if (clientHints) {
-          buildAndSendPixel(clientHints);
-        } else {
-          waitOnCH(chTimeout)
-            .then((ch: any) => buildAndSendPixel(ch || ''));
-        }
-      } else {
-        buildAndSendPixel('');
-      }
-      return;
-    }
-
     if (!shouldCallServer) {
       firePartnerCallback();
       updateCountersAndStore(runtimeEids, allowedStorage, partnerData);
@@ -648,28 +436,22 @@ export const intentIqIdSubmodule = {
 
     // use protocol relative urls for http or https
     let url = `${getIiqServerAddress(configParams as any)}/profiles_engine/ProfilesEngineServlet?at=39&mi=10&dpi=${configParams.partner}&pt=17&dpn=1`;
-    url += configParams.pai ? '&pai=' + encodeURIComponent(configParams.pai) : '';
     url = appendFirstPartyData(url, firstPartyData, partnerData);
     url = appendPartnersFirstParty(url, configParams);
     url += (partnerData.cttl) ? '&cttl=' + encodeURIComponent(partnerData.cttl) : '';
     url += (partnerData.rrtt) ? '&rrtt=' + encodeURIComponent(partnerData.rrtt) : '';
     url = appendCMPData(url, cmpData);
-    url += '&japs=' + encodeURIComponent(configParams.siloEnabled === true);
+    url += '&japs=false';
     url = appendCounters(url);
     url += VERSION ? '&jsver=' + VERSION : '';
     url += actualABGroup ? '&testGroup=' + encodeURIComponent(actualABGroup) : '';
-    url = addMetaData(url, sourceMetaDataExternal || sourceMetaData);
-    if (isNumber(configParams.abPercentage)) {
-      url += '&testPercentage=' + encodeURIComponent(getEffectiveAbPercentage(configParams.abPercentage));
-    }
-    url = handleAdditionalParams(currentBrowserLowerCase, url, 1, additionalParams);
     url = appendSPData(url, partnerData);
     url += '&source=' + PREBID;
-    url += '&ABTestingConfigurationSource=' + configParams.ABTestingConfigurationSource;
+    url += '&ABTestingConfigurationSource=group';
     url += '&abtg=' + encodeURIComponent(actualABGroup as string);
 
     // Add vrref and fui to the URL
-    url = appendVrrefAndFui(url, configParams.domainName);
+    url = appendVrrefAndFui(url);
 
     const storeFirstPartyData = (): void => {
       partnerData.eidl = runtimeEids?.eids?.length || -1;
@@ -682,6 +464,7 @@ export const intentIqIdSubmodule = {
         success: (response: any) => {
           if (rrttStrtTime && rrttStrtTime > 0) {
             partnerData.rrtt = Date.now() - rrttStrtTime;
+            markVrCallDuration(partnerData.rrtt);
           }
           const respJson = tryParse(response) as any;
           // If response is a valid json and should save is true
@@ -700,11 +483,10 @@ export const intentIqIdSubmodule = {
             } else partnerData.cttl = HOURS_72;
 
             if ('tc' in respJson) {
+              // ABTestingConfigurationSource is fixed to 'group' for this build, so the
+              // group never depends on the server's termination cause — only store it
+              // for downstream reporting (e.g. the analytics adapter).
               partnerData.terminationCause = respJson.tc;
-              actualABGroup = defineABTestingGroup(configParams, respJson.tc,);
-
-              if (gamObjectReference) setGamReporting(gamObjectReference, gamParameterName, actualABGroup);
-              if (groupChanged) groupChanged(actualABGroup, partnerData?.terminationCause);
             }
             if ('isOptedOut' in respJson) {
               if (respJson.isOptedOut !== firstPartyData.isOptedOut) {
@@ -766,13 +548,6 @@ export const intentIqIdSubmodule = {
               }
             }
 
-            if ('gpr' in respJson) {
-              // GAM prediction reporting
-              partnerData.gpr = respJson.gpr;
-            } else {
-              delete partnerData.gpr; // remove prediction flag in case server doesn't provide it
-            }
-
             if (respJson.data?.eids) {
               runtimeEids = respJson.data;
               callback(respJson.data.eids);
@@ -803,6 +578,7 @@ export const intentIqIdSubmodule = {
       clearCountersAndStore(allowedStorage, partnerData);
 
       rrttStrtTime = Date.now();
+      markVrCallStart();
 
       const sendAjax = (uh: string) => {
         if (uh) url += '&uh=' + encodeURIComponent(uh);
