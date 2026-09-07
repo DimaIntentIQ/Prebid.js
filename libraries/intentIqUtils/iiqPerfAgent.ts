@@ -24,7 +24,7 @@
 import { storage } from './storageUtils.ts';
 
 // >>> Set this per build before swapping it in via a local override. <<<
-export const PERF_SCENARIO = 'custom-with-analytics';
+export const PERF_SCENARIO = 'custom_minimized_with_refreshuserids';
 
 const STORAGE_PREFIX = 'iiq_perf_';
 const SCENARIOS_INDEX_KEY = '_iiq_perf_scenarios_index';
