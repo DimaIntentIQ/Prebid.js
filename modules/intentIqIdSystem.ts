@@ -75,6 +75,11 @@ export interface IntentIqIdSystemParams {
    * by the IntentIQ server.
    */
   partnerClientIdType?: number;
+
+  /**
+   * Publisher domain name, used to build the referrer URL parameter.
+   */
+  domainName?: string;
 };
 
 declare module './userId/spec' {
@@ -444,7 +449,7 @@ export const intentIqIdSubmodule = {
     url += '&abtg=' + encodeURIComponent(actualABGroup as string);
 
     // Add vrref and fui to the URL
-    url = appendVrrefAndFui(url);
+    url = appendVrrefAndFui(url, configParams.domainName);
 
     const storeFirstPartyData = (): void => {
       partnerData.eidl = runtimeEids?.eids?.length || -1;

@@ -67,6 +67,7 @@ const randomVal = () => Math.floor(Math.random() * 100000) + 1;
 const getDefaultConfig = () => {
   return {
     partner,
+    manualWinReportEnabled: true,
   };
 };
 
@@ -150,8 +151,25 @@ describe("IntentIQ tests all", function () {
     delete window[identityName];
   });
 
-  it("should not send any request on BID_WON event (reporting is manual-only)", function () {
+  it("should not auto-report on BID_WON via track() when manualWinReportEnabled is true (default)", function () {
     events.emit(EVENTS.BID_WON, getWonRequest());
+    expect(server.requests.length).to.equal(0);
+  });
+
+  it("should auto-report on BID_WON via track() when manualWinReportEnabled is false", function () {
+    enableAnalyticWithSpecialOptions({ manualWinReportEnabled: false });
+
+    events.emit(EVENTS.BID_WON, getWonRequest());
+
+    expect(server.requests.length).to.be.above(0);
+  });
+
+  it("should not send reportExternalWin when manualWinReportEnabled is false", function () {
+    enableAnalyticWithSpecialOptions({ manualWinReportEnabled: false });
+
+    const result = reportWin(getWonRequest());
+
+    expect(result).to.equal(false);
     expect(server.requests.length).to.equal(0);
   });
 
@@ -358,7 +376,7 @@ describe("IntentIQ tests all", function () {
     expect(iiqAnalyticsAnalyticsAdapter.initOptions.fpid).to.be.not.null;
   });
 
-  it("should always report an external win regardless of any manualWinReportEnabled config", function () {
+  it("should report an external win when manualWinReportEnabled is true", function () {
     expect(
       window[`intentIqAnalyticsAdapter_${partner}`].reportExternalWin
     ).to.be.a("function");
@@ -530,6 +548,33 @@ describe("IntentIQ tests all", function () {
       });
     }
   );
+
+  it("should include domainName in both query and payload when fullUrl is empty (cross-origin)", function () {
+    const domainName = "mydomain-frame.com";
+
+    enableAnalyticWithSpecialOptions({ domainName });
+
+    getWindowTopStub = sinon
+      .stub(utils, "getWindowTop")
+      .throws(new Error("cross-origin"));
+
+    reportWin(getWonRequest());
+
+    const request = server.requests[0];
+    const parsedUrl = new URL(request.url);
+    const vrrefParam = parsedUrl.searchParams.get("vrref");
+
+    const payloadEncoded = parsedUrl.searchParams.get("payload");
+    const payloadDecoded = JSON.parse(atob(JSON.parse(payloadEncoded)[0]));
+
+    expect(server.requests.length).to.be.above(0);
+    expect(vrrefParam).to.not.equal(null);
+    expect(decodeURIComponent(vrrefParam)).to.equal(domainName);
+    expect(parsedUrl.searchParams.get("fui")).to.equal("1");
+
+    expect(payloadDecoded).to.have.property("vrref");
+    expect(decodeURIComponent(payloadDecoded.vrref)).to.equal(domainName);
+  });
 
   const placementIdTests = [
     {
