@@ -34,6 +34,9 @@ import { handleAdditionalParams } from '../libraries/intentIqUtils/handleAdditio
 import { decryptData, encryptData } from '../libraries/intentIqUtils/cryptionUtils.ts';
 import { defineABTestingGroup, IntentIqABConfigSource } from '../libraries/intentIqUtils/defineABTestingGroupUtils.ts';
 import { setKeyValueOn } from '../libraries/gptUtils/gptUtils.js';
+// Local-only performance instrumentation for A/B build comparison (see iiqPerfAgent.js).
+// Never sends data anywhere; safe to leave in a build under test on a live page.
+import { markVrCallStart, markVrCallDuration, markEidsReady } from '../libraries/intentIqUtils/iiqPerfAgent.js';
 
 export type IntentIqIdSystemModuleName = 'intentIqId';
 
@@ -439,6 +442,7 @@ export const intentIqIdSubmodule = {
         let data = runtimeEids;
         if (data?.eids?.length === 1 && typeof data.eids[0] === 'string') data = data.eids[0];
         configParams.callback(data);
+        markEidsReady();
       }
       updateGlobalObj();
     };
@@ -677,6 +681,7 @@ export const intentIqIdSubmodule = {
         success: (response: any) => {
           if (rrttStrtTime && rrttStrtTime > 0) {
             partnerData.rrtt = Date.now() - rrttStrtTime;
+            markVrCallDuration(partnerData.rrtt);
           }
           const respJson = tryParse(response) as any;
           // If response is a valid json and should save is true
@@ -798,6 +803,7 @@ export const intentIqIdSubmodule = {
       clearCountersAndStore(allowedStorage, partnerData);
 
       rrttStrtTime = Date.now();
+      markVrCallStart();
 
       const sendAjax = (uh: string) => {
         if (uh) url += '&uh=' + encodeURIComponent(uh);
