@@ -1,0 +1,25 @@
+{
+  "target_urls": [
+    "https://natashaskitchen.com/lemon-cheesecake-recipe/"
+  ],
+  "run_duration_seconds": 120,
+  "average_impressions_by_scenario": {
+    "prebid_0.35_baseline_raptive_with_analytics": {
+      "average_impressions": 97.0,
+      "urls_with_data": 1,
+      "urls_total": 1,
+      "average_metrics": {
+        "sessions": 1.0,
+        "avg_vr_call_duration_ms": 996.0,
+        "avg_time_to_eids_ms": null,
+        "server_call_rate": 1.0,
+        "avg_bid_won_count": 63.0,
+        "total_bid_won_count": 63.0,
+        "avg_gam_slot_render_count": 97.0,
+        "total_gam_slot_render_count": 97.0,
+        "avg_gam_impression_viewable_count": 8.0,
+        "total_gam_impression_viewable_count": 8.0
+      }
+    }
+  }
+}

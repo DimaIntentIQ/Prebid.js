@@ -1,0 +1,17 @@
+{
+  "prebid_0.38_custom_raptive": {
+    "total_impressions": 106,
+    "metrics": {
+      "sessions": 1,
+      "avg_vr_call_duration_ms": 970.0,
+      "avg_time_to_eids_ms": null,
+      "server_call_rate": 1.0,
+      "avg_bid_won_count": 67.0,
+      "total_bid_won_count": 67,
+      "avg_gam_slot_render_count": 106.0,
+      "total_gam_slot_render_count": 106,
+      "avg_gam_impression_viewable_count": 7.0,
+      "total_gam_impression_viewable_count": 7
+    }
+  }
+}
