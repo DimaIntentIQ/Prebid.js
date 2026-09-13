@@ -67,7 +67,6 @@ const randomVal = () => Math.floor(Math.random() * 100000) + 1;
 const getDefaultConfig = () => {
   return {
     partner,
-    manualWinReportEnabled: true,
   };
 };
 
@@ -151,25 +150,8 @@ describe("IntentIQ tests all", function () {
     delete window[identityName];
   });
 
-  it("should not auto-report on BID_WON via track() when manualWinReportEnabled is true (default)", function () {
+  it("should not send any request on BID_WON event (reporting is manual-only)", function () {
     events.emit(EVENTS.BID_WON, getWonRequest());
-    expect(server.requests.length).to.equal(0);
-  });
-
-  it("should auto-report on BID_WON via track() when manualWinReportEnabled is false", function () {
-    enableAnalyticWithSpecialOptions({ manualWinReportEnabled: false });
-
-    events.emit(EVENTS.BID_WON, getWonRequest());
-
-    expect(server.requests.length).to.be.above(0);
-  });
-
-  it("should not send reportExternalWin when manualWinReportEnabled is false", function () {
-    enableAnalyticWithSpecialOptions({ manualWinReportEnabled: false });
-
-    const result = reportWin(getWonRequest());
-
-    expect(result).to.equal(false);
     expect(server.requests.length).to.equal(0);
   });
 
@@ -376,7 +358,7 @@ describe("IntentIQ tests all", function () {
     expect(iiqAnalyticsAnalyticsAdapter.initOptions.fpid).to.be.not.null;
   });
 
-  it("should report an external win when manualWinReportEnabled is true", function () {
+  it("should always report an external win regardless of any manualWinReportEnabled config", function () {
     expect(
       window[`intentIqAnalyticsAdapter_${partner}`].reportExternalWin
     ).to.be.a("function");

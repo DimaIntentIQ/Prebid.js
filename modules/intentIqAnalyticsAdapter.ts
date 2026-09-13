@@ -2,7 +2,6 @@ import { logError, logInfo } from '../src/utils.js';
 import adapter from '../libraries/analyticsAdapter/AnalyticsAdapter.js';
 import adapterManager from '../src/adapterManager.js';
 import { ajax } from '../src/ajax.js';
-import { EVENTS } from '../src/constants.js';
 import { appendSPData } from '../libraries/intentIqUtils/urlUtils.ts';
 import { appendVrrefAndFui, getCurrentUrl, getRelevantRefferer } from '../libraries/intentIqUtils/getRefferer.ts';
 import { getCmpData, isValidValue } from '../libraries/intentIqUtils/getCmpData.ts';
@@ -88,9 +87,11 @@ export interface IntentIqAnalyticsAdapterOptions {
   partner: number;
 
   /**
-   * Set to `true` to allow manual win reporting via
-   * `window.intentIqAnalyticsAdapter_<partnerId>.reportExternalWin()`.
-   * Defaults to `false`.
+   * Accepted for config compatibility. This build always operates in
+   * manual-report mode (fixed to `true` internally) via
+   * `window.intentIqAnalyticsAdapter_<partnerId>.reportExternalWin()` --
+   * automatic BID_WON reporting is not implemented, so this value has no
+   * effect either way.
    */
   manualWinReportEnabled?: boolean;
 
@@ -169,7 +170,7 @@ const getDefaultInitOptions = () => {
     dataInLs: null,
     eidl: null,
     dataIdsInitialized: false,
-    manualWinReportEnabled: false,
+    manualWinReportEnabled: true,
     domainName: null,
     abTestUuid: null
   };
@@ -177,31 +178,27 @@ const getDefaultInitOptions = () => {
 
 const iiqAnalyticsAnalyticsAdapter: any = Object.assign(adapter({ url: DEFAULT_URL, analyticsType }), {
   initOptions: getDefaultInitOptions(),
-  track({ eventType, args }: { eventType: string; args: any }) {
-    // Automatic BID_WON reporting only fires when manualWinReportEnabled is falsy;
-    // when it's true, reports are only sent via
-    // window.intentIqAnalyticsAdapter_<partnerId>.reportExternalWin().
-    if (eventType === BID_WON) {
-      bidWon(args);
-    }
+  track() {
+    // Intentional no-op: this build fixes manualWinReportEnabled to true, so BID_WON
+    // reports are only sent via window.intentIqAnalyticsAdapter_<partnerId>.reportExternalWin().
+    // Keeping this override in place prevents the base AnalyticsAdapter's default
+    // endpoint auto-send behavior for every tracked event.
   }
 });
-
-// Event needed
-const { BID_WON } = EVENTS;
 
 function initAdapterConfig(config: any): void {
   if (iiqAnalyticsAnalyticsAdapter.initOptions.adapterConfigInitialized) return;
 
   const options = config?.options || {};
   iiqConfig = options;
-  const { partner, group, manualWinReportEnabled, domainName } = options;
+  const { partner, group, domainName } = options;
   // ABTestingConfigurationSource is fixed to 'group' for this build: the group is
   // taken directly from `group`, independent of the server termination cause.
   iiqAnalyticsAnalyticsAdapter.initOptions.currentGroup =
     typeof group === 'string' && group.toUpperCase() === WITHOUT_IIQ ? WITHOUT_IIQ : WITH_IIQ;
   iiqAnalyticsAnalyticsAdapter.initOptions.idModuleConfigInitialized = true;
-  iiqAnalyticsAnalyticsAdapter.initOptions.manualWinReportEnabled = manualWinReportEnabled || false;
+  // manualWinReportEnabled is intentionally NOT read from options: this build always
+  // operates in manual-report mode, regardless of what a caller passes for it.
   iiqAnalyticsAnalyticsAdapter.initOptions.domainName = domainName || '';
   if (!partner) {
     logError('IIQ ANALYTICS -> partner ID is missing');
@@ -243,18 +240,10 @@ function receivePartnerData(): boolean | void {
   }
 }
 
-function shouldSendReport(isReportExternal?: boolean): boolean {
-  return (
-    (isReportExternal && iiqAnalyticsAnalyticsAdapter.initOptions.manualWinReportEnabled) ||
-    (!isReportExternal && !iiqAnalyticsAnalyticsAdapter.initOptions.manualWinReportEnabled)
-  );
-}
-
-function bidWon(args: any, isReportExternal?: boolean): boolean | void {
+function bidWon(args: any): boolean | void {
   if (isNaN(iiqAnalyticsAnalyticsAdapter.initOptions.partner)) {
     iiqAnalyticsAnalyticsAdapter.initOptions.partner = -1;
   }
-  if (!shouldSendReport(isReportExternal)) return false;
   const success = receivePartnerData();
   const preparedPayload = preparePayload(args);
   if (!preparedPayload) return false;
@@ -269,7 +258,7 @@ function bidWon(args: any, isReportExternal?: boolean): boolean | void {
 
 function defineGlobalVariableName(): void {
   function reportExternalWin(args: any): boolean | void {
-    return bidWon(args, true);
+    return bidWon(args);
   }
 
   const partnerId = iiqConfig?.partner || 0;
