@@ -6,26 +6,21 @@ import {
   intentIqIdSubmodule,
   handleClientHints,
   firstPartyData as moduleFPD,
-  isCMPStringTheSame, createPixelUrl, translateMetadata,
-  initializeGlobalIIQ,
-  setGamReporting
+  isCMPStringTheSame,
+  initializeGlobalIIQ
 } from '../../../modules/intentIqIdSystem.js';
 import { storage, readData, storeData } from '../../../libraries/intentIqUtils/storageUtils.js';
 import { gppDataHandler, uspDataHandler, gdprDataHandler } from '../../../src/consentHandler.js';
 import { clearAllCookies } from '../../helpers/cookies.js';
-import { detectBrowser, detectBrowserFromUserAgent, detectBrowserFromUserAgentData } from '../../../libraries/intentIqUtils/detectBrowserUtils.js';
-import { CLIENT_HINTS_KEY, FIRST_PARTY_KEY, PREBID, WITH_IIQ, WITHOUT_IIQ } from '../../../libraries/intentIqConstants/intentIqConstants.js';
+import { CLIENT_HINTS_KEY, FIRST_PARTY_KEY, PREBID } from '../../../libraries/intentIqConstants/intentIqConstants.js';
 import { decryptData } from '../../../libraries/intentIqUtils/cryptionUtils.js';
 
 const partner = 10;
-const pai = '11';
 const partnerClientId = '12';
 const partnerClientIdType = 0;
-const sourceMetaData = '1.1.1.1';
 const defaultConfigParams = { params: { partner } };
-const paiConfigParams = { params: { partner, pai } };
 const pcidConfigParams = { params: { partner, partnerClientIdType, partnerClientId } };
-const allConfigParams = { params: { partner, pai, partnerClientIdType, partnerClientId, sourceMetaData } };
+const allConfigParams = { params: { partner, partnerClientIdType, partnerClientId } };
 const responseHeader = { 'Content-Type': 'application/json' };
 
 export const testClientHints = {
@@ -104,37 +99,11 @@ async function waitForClientHints() {
 }
 
 const testAPILink = 'https://new-test-api.intentiq.com';
-const syncTestAPILink = 'https://new-test-sync.intentiq.com';
-const mockGAM = () => {
-  const targetingObject = {};
-  return {
-    cmd: [],
-    pubads: () => ({
-      setTargeting: (key, value) => {
-        targetingObject[key] = value;
-      },
-      getTargeting: (key) => {
-        return [targetingObject[key]];
-      },
-      getTargetingKeys: () => {
-        return Object.keys(targetingObject);
-      }
-    })
-  };
-};
-
 const regionCases = [
   { name: 'no region (default)', region: undefined, expected: 'https://api.intentiq.com' },
   { name: 'apac', region: 'apac', expected: 'https://api-apac.intentiq.com' },
   { name: 'emea', region: 'emea', expected: 'https://api-emea.intentiq.com' },
   { name: 'gdpr', region: 'gdpr', expected: 'https://api-gdpr.intentiq.com' }
-];
-
-const syncRegionCases = [
-  { name: 'default', region: undefined, expected: 'https://sync.intentiq.com' },
-  { name: 'apac', region: 'apac', expected: 'https://sync-apac.intentiq.com' },
-  { name: 'emea', region: 'emea', expected: 'https://sync-emea.intentiq.com' },
-  { name: 'gdpr', region: 'gdpr', expected: 'https://sync-gdpr.intentiq.com' },
 ];
 
 describe('IntentIQ tests', function () {
@@ -220,46 +189,6 @@ describe('IntentIQ tests', function () {
     expect(submodule).to.be.undefined;
   });
 
-  it('should use setConfig when available in setGamReporting', function () {
-    const setConfigSpy = sinon.spy();
-    const pubadsSetTargetingSpy = sinon.spy();
-    const mockGAM = {
-      cmd: [],
-      getConfig: sinon.stub(),
-      setConfig: setConfigSpy,
-      pubads: () => ({
-        setTargeting: pubadsSetTargetingSpy
-      })
-    };
-
-    setGamReporting(mockGAM, 'intent_iq_group', 'A');
-    mockGAM.cmd.forEach((fn) => fn());
-
-    expect(setConfigSpy.calledOnce).to.equal(true);
-    expect(setConfigSpy.firstCall.args[0]).to.deep.equal({
-      targeting: {
-        intent_iq_group: 'A'
-      }
-    });
-    expect(pubadsSetTargetingSpy.called).to.equal(false);
-  });
-
-  it('should fall back to pubads.setTargeting when setConfig is missing', function () {
-    const pubadsSetTargetingSpy = sinon.spy();
-    const mockGAM = {
-      cmd: [],
-      pubads: () => ({
-        setTargeting: pubadsSetTargetingSpy
-      })
-    };
-
-    setGamReporting(mockGAM, 'intent_iq_group', 'B');
-    mockGAM.cmd.forEach((fn) => fn());
-
-    expect(pubadsSetTargetingSpy.calledOnce).to.equal(true);
-    expect(pubadsSetTargetingSpy.firstCall.args).to.deep.equal(['intent_iq_group', 'B']);
-  });
-
   it('should not save data in cookie if relevant type not set', async function () {
     const callBackSpy = sinon.spy();
     const submoduleCallback = intentIqIdSubmodule.getId(defaultConfigParams).callback;
@@ -283,7 +212,7 @@ describe('IntentIQ tests', function () {
     await waitForClientHints();
 
     const request = server.requests[0];
-    expect(request.url).to.contain('https://api.intentiq.com/profiles_engine/ProfilesEngineServlet?at=39&mi=10&dpi=10&pt=17&dpn=1&pai=11&iiqidtype=2&iiqpcid=');
+    expect(request.url).to.contain('https://api.intentiq.com/profiles_engine/ProfilesEngineServlet?at=39&mi=10&dpi=10&pt=17&dpn=1&iiqidtype=2&iiqpcid=');
     request.respond(
       200,
       responseHeader,
@@ -318,24 +247,6 @@ describe('IntentIQ tests', function () {
     expect(intentIqIdSubmodule.decode(undefined)).to.equal(undefined);
   });
 
-  it('should send AT=20 request and send source in it', async function () {
-    const usedBrowser = 'chrome';
-    intentIqIdSubmodule.getId({
-      params: {
-        partner: 10,
-        browserBlackList: usedBrowser
-      }
-    });
-    const currentBrowserLowerCase = detectBrowser();
-
-    if (currentBrowserLowerCase === usedBrowser) {
-      await waitForClientHints();
-      const at20request = server.requests[0];
-      expect(at20request.url).to.contain(`&source=${PREBID}`);
-      expect(at20request.url).to.contain(`at=20`);
-    }
-  });
-
   it('should send at=39 request and send source in it', async function () {
     const callBackSpy = sinon.spy();
     const submoduleCallback = intentIqIdSubmodule.getId(defaultConfigParams).callback;
@@ -344,22 +255,6 @@ describe('IntentIQ tests', function () {
     const request = server.requests[0];
 
     expect(request.url).to.contain(`&source=${PREBID}`);
-  });
-
-  it('should call the IntentIQ endpoint with only partner, pai', async function () {
-    const callBackSpy = sinon.spy();
-    const submoduleCallback = intentIqIdSubmodule.getId(paiConfigParams).callback;
-    submoduleCallback(callBackSpy);
-    await waitForClientHints();
-
-    const request = server.requests[0];
-    expect(request.url).to.contain('https://api.intentiq.com/profiles_engine/ProfilesEngineServlet?at=39&mi=10&dpi=10&pt=17&dpn=1&pai=11&iiqidtype=2&iiqpcid=');
-    request.respond(
-      200,
-      responseHeader,
-      JSON.stringify({})
-    );
-    expect(callBackSpy.calledOnce).to.be.true;
   });
 
   it('should call the IntentIQ endpoint with only partner, pcid', async function () {
@@ -377,161 +272,6 @@ describe('IntentIQ tests', function () {
       JSON.stringify({})
     );
     expect(callBackSpy.calledOnce).to.be.true;
-  });
-
-  it('should call the IntentIQ endpoint with partner, pcid, pai', async function () {
-    const callBackSpy = sinon.spy();
-    const submoduleCallback = intentIqIdSubmodule.getId(allConfigParams).callback;
-    submoduleCallback(callBackSpy);
-    await waitForClientHints();
-    const request = server.requests[0];
-    expect(request.url).to.contain('https://api.intentiq.com/profiles_engine/ProfilesEngineServlet?at=39&mi=10&dpi=10&pt=17&dpn=1&pai=11&iiqidtype=2&iiqpcid=');
-    expect(request.url).to.contain('&pcid=12');
-    request.respond(
-      200,
-      responseHeader,
-      JSON.stringify({})
-    );
-    expect(callBackSpy.calledOnce).to.be.true;
-  });
-
-  it('should set GAM targeting to B initially and update to A after server response', async function () {
-    const callBackSpy = sinon.spy();
-    const mockGamObject = mockGAM();
-    const expectedGamParameterName = 'intent_iq_group';
-    defaultConfigParams.params.abPercentage = 0; // "B" provided percentage by user
-
-    const originalPubads = mockGamObject.pubads;
-    const setTargetingSpy = sinon.spy();
-    mockGamObject.pubads = function () {
-      const obj = { ...originalPubads.apply(this, arguments) };
-      const originalSetTargeting = obj.setTargeting;
-      obj.setTargeting = function (...args) {
-        setTargetingSpy(...args);
-        return originalSetTargeting.apply(this, args);
-      };
-      return obj;
-    };
-
-    defaultConfigParams.params.gamObjectReference = mockGamObject;
-
-    const submoduleCallback = intentIqIdSubmodule.getId(defaultConfigParams).callback;
-    submoduleCallback(callBackSpy);
-    await waitForClientHints();
-    const request = server.requests[0];
-
-    mockGamObject.cmd.forEach(cb => cb());
-    mockGamObject.cmd = [];
-
-    const groupBeforeResponse = mockGamObject.pubads().getTargeting(expectedGamParameterName);
-
-    request.respond(200, responseHeader, JSON.stringify({ tc: 20 }));
-
-    mockGamObject.cmd.forEach(cb => cb());
-    mockGamObject.cmd = [];
-
-    const groupAfterResponse = mockGamObject.pubads().getTargeting(expectedGamParameterName);
-
-    expect(request.url).to.contain('https://api.intentiq.com/profiles_engine/ProfilesEngineServlet?at=39');
-    expect(groupBeforeResponse).to.deep.equal([WITHOUT_IIQ]);
-    expect(groupAfterResponse).to.deep.equal([WITH_IIQ]);
-    expect(setTargetingSpy.calledTwice).to.be.true;
-  });
-
-  it('should set GAM targeting to B when server tc=41', async () => {
-    window.localStorage.clear();
-    const mockGam = mockGAM();
-    defaultConfigParams.params.gamObjectReference = mockGam;
-    defaultConfigParams.params.abPercentage = 100;
-
-    const cb = intentIqIdSubmodule.getId(defaultConfigParams).callback;
-    cb(() => {});
-    await waitForClientHints();
-
-    const req = server.requests[0];
-    mockGam.cmd.forEach(fn => fn());
-    const before = mockGam.pubads().getTargeting('intent_iq_group');
-
-    req.respond(200, responseHeader, JSON.stringify({ tc: 41 }));
-    mockGam.cmd.forEach(fn => fn());
-    const after = mockGam.pubads().getTargeting('intent_iq_group');
-
-    expect(before).to.deep.equal([WITH_IIQ]);
-    expect(after).to.deep.equal([WITHOUT_IIQ]);
-  });
-
-  it('should read tc from LS and set relevant GAM group', async () => {
-    window.localStorage.clear();
-    const storageKey = `${FIRST_PARTY_KEY}_${defaultConfigParams.params.partner}`;
-    localStorage.setItem(storageKey, JSON.stringify({ terminationCause: 41 }));
-
-    const mockGam = mockGAM();
-    defaultConfigParams.params.gamObjectReference = mockGam;
-    defaultConfigParams.params.abPercentage = 100;
-
-    const cb = intentIqIdSubmodule.getId(defaultConfigParams).callback;
-    cb(() => {});
-    await waitForClientHints();
-
-    mockGam.cmd.forEach(fn => fn());
-    const group = mockGam.pubads().getTargeting('intent_iq_group');
-
-    expect(group).to.deep.equal([WITHOUT_IIQ]);
-  });
-
-  it('should use the provided gamParameterName from configParams', function () {
-    const callBackSpy = sinon.spy();
-    const mockGamObject = mockGAM();
-    const customParamName = 'custom_gam_param';
-
-    defaultConfigParams.params.gamObjectReference = mockGamObject;
-    defaultConfigParams.params.gamParameterName = customParamName;
-
-    const submoduleCallback = intentIqIdSubmodule.getId(defaultConfigParams).callback;
-    submoduleCallback(callBackSpy);
-    mockGamObject.cmd.forEach(cb => cb());
-    const targetingKeys = mockGamObject.pubads().getTargetingKeys();
-
-    expect(targetingKeys).to.include(customParamName);
-  });
-
-  it('should NOT call GAM setTargeting when current browser is in browserBlackList', function () {
-    const usedBrowser = 'chrome';
-    const gam = mockGAM();
-    const pa = gam.pubads();
-    sinon.stub(gam, 'pubads').returns(pa);
-
-    const originalSetTargeting = pa.setTargeting;
-    let setTargetingCalls = 0;
-    pa.setTargeting = function (...args) {
-      setTargetingCalls++;
-      return originalSetTargeting.apply(this, args);
-    };
-
-    localStorage.setItem(FIRST_PARTY_KEY, JSON.stringify({
-      pcid: 'pcid-1',
-      pcidDate: Date.now(),
-      isOptedOut: false,
-      date: Date.now(),
-      sCal: Date.now()
-    }));
-
-    const cfg = {
-      params: {
-        partner,
-        gamObjectReference: gam,
-        gamParameterName: 'custom_gam_param',
-        browserBlackList: usedBrowser
-      }
-    };
-
-    intentIqIdSubmodule.getId(cfg);
-    gam.cmd.forEach(fn => fn());
-    const currentBrowserLowerCase = detectBrowser();
-    if (currentBrowserLowerCase === usedBrowser) {
-      expect(setTargetingCalls).to.equal(0);
-      expect(pa.getTargetingKeys()).to.not.include('custom_gam_param');
-    }
   });
 
   it('should not throw Uncaught TypeError when IntentIQ endpoint returns empty response', async function () {
@@ -570,7 +310,7 @@ describe('IntentIQ tests', function () {
     submoduleCallback(callBackSpy);
     await waitForClientHints();
     const request = server.requests[0];
-    expect(request.url).to.contain('https://api.intentiq.com/profiles_engine/ProfilesEngineServlet?at=39&mi=10&dpi=10&pt=17&dpn=1&pai=11&iiqidtype=2&iiqpcid=');
+    expect(request.url).to.contain('https://api.intentiq.com/profiles_engine/ProfilesEngineServlet?at=39&mi=10&dpi=10&pt=17&dpn=1&iiqidtype=2&iiqpcid=');
     request.respond(
       200,
       responseHeader,
@@ -586,7 +326,7 @@ describe('IntentIQ tests', function () {
     submoduleCallback(callBackSpy);
     await waitForClientHints();
     const request = server.requests[0];
-    expect(request.url).to.contain('https://api.intentiq.com/profiles_engine/ProfilesEngineServlet?at=39&mi=10&dpi=10&pt=17&dpn=1&pai=11&iiqidtype=2&iiqpcid=');
+    expect(request.url).to.contain('https://api.intentiq.com/profiles_engine/ProfilesEngineServlet?at=39&mi=10&dpi=10&pt=17&dpn=1&iiqidtype=2&iiqpcid=');
     request.respond(
       200,
       responseHeader,
@@ -603,7 +343,7 @@ describe('IntentIQ tests', function () {
     submoduleCallback(callBackSpy);
     await waitForClientHints();
     const request = server.requests[0];
-    expect(request.url).to.contain('https://api.intentiq.com/profiles_engine/ProfilesEngineServlet?at=39&mi=10&dpi=10&pt=17&dpn=1&pai=11&iiqidtype=2&iiqpcid=');
+    expect(request.url).to.contain('https://api.intentiq.com/profiles_engine/ProfilesEngineServlet?at=39&mi=10&dpi=10&pt=17&dpn=1&iiqidtype=2&iiqpcid=');
     expect(request.url).to.contain('cttl=' + testLSValue.cttl);
     expect(request.url).to.contain('rrtt=' + testLSValue.rrtt);
     request.respond(
@@ -619,16 +359,6 @@ describe('IntentIQ tests', function () {
     localStorage.setItem('_iiq_fdata_' + partner, JSON.stringify(testLSValueWithData));
     const returnedValue = intentIqIdSubmodule.getId(allConfigParams);
     expect(returnedValue.id).to.deep.equal(JSON.parse(decryptData(testLSValueWithData.data)).eids);
-  });
-
-  it('should handle browser blacklisting', function () {
-    const configParamsWithBlacklist = {
-      params: { partner: partner, browserBlackList: 'chrome' }
-    };
-    sinon.stub(navigator, 'userAgent').value('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36');
-    const submoduleCallback = intentIqIdSubmodule.getId(configParamsWithBlacklist);
-    expect(logErrorStub.calledOnce).to.be.true;
-    expect(submoduleCallback).to.be.undefined;
   });
 
   it('should handle invalid JSON in readData', async function () {
@@ -647,44 +377,6 @@ describe('IntentIQ tests', function () {
 
     expect(callBackSpy.calledOnce).to.be.true;
     expect(logErrorStub.called).to.be.true;
-  });
-
-  it('should send AT=20 request and send spd in it', async function () {
-    const spdValue = { foo: 'bar', value: 42 };
-    const encodedSpd = encodeURIComponent(JSON.stringify(spdValue));
-    localStorage.setItem(FIRST_PARTY_KEY + '_' + partner, JSON.stringify({ pcid: '123', spd: spdValue }));
-
-    intentIqIdSubmodule.getId({
-      params: {
-        partner: 10,
-        browserBlackList: 'chrome'
-      }
-    });
-
-    await waitForClientHints();
-
-    const at20request = server.requests[0];
-    expect(at20request.url).to.contain(`&spd=${encodedSpd}`);
-    expect(at20request.url).to.contain(`at=20`);
-  });
-
-  it('should send AT=20 request and send spd string in it ', async function () {
-    const spdValue = 'server provided data';
-    const encodedSpd = encodeURIComponent(spdValue);
-    localStorage.setItem(FIRST_PARTY_KEY + '_' + partner, JSON.stringify({ pcid: '123', spd: spdValue }));
-
-    intentIqIdSubmodule.getId({
-      params: {
-        partner: 10,
-        browserBlackList: 'chrome'
-      }
-    });
-
-    await waitForClientHints();
-
-    const at20request = server.requests[0];
-    expect(at20request.url).to.contain(`&spd=${encodedSpd}`);
-    expect(at20request.url).to.contain(`at=20`);
   });
 
   it('should send spd from firstPartyData in localStorage in at=39 request', async function () {
@@ -742,59 +434,7 @@ describe('IntentIQ tests', function () {
     expect(parsedLs.spd).to.deep.equal(spdValue);
   });
 
-  describe('detectBrowserFromUserAgent', function () {
-    it('should detect Chrome browser', function () {
-      const userAgent = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36';
-      const result = detectBrowserFromUserAgent(userAgent);
-      expect(result).to.equal('chrome');
-    });
-
-    it('should detect Safari browser', function () {
-      const userAgent = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/14.0.3 Safari/605.1.15';
-      const result = detectBrowserFromUserAgent(userAgent);
-      expect(result).to.equal('safari');
-    });
-
-    it('should detect Firefox browser', function () {
-      const userAgent = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:89.0) Gecko/20100101 Firefox/89.0';
-      const result = detectBrowserFromUserAgent(userAgent);
-      expect(result).to.equal('firefox');
-    });
-  });
-
-  describe('detectBrowserFromUserAgentData', function () {
-    it('should detect Microsoft Edge browser', function () {
-      const userAgentData = {
-        brands: [
-          { brand: 'Microsoft Edge', version: '91' },
-          { brand: 'Chromium', version: '91' }
-        ]
-      };
-      const result = detectBrowserFromUserAgentData(userAgentData);
-      expect(result).to.equal('edge');
-    });
-
-    it('should detect Chrome browser', function () {
-      const userAgentData = {
-        brands: [
-          { brand: 'Google Chrome', version: '91' },
-          { brand: 'Chromium', version: '91' }
-        ]
-      };
-      const result = detectBrowserFromUserAgentData(userAgentData);
-      expect(result).to.equal('chrome');
-    });
-
-    it('should return unknown for unrecognized user agent data', function () {
-      const userAgentData = {
-        brands: [
-          { brand: 'Unknown Browser', version: '1.0' }
-        ]
-      };
-      const result = detectBrowserFromUserAgentData(userAgentData);
-      expect(result).to.equal('unknown');
-    });
-
+  describe('server-call gating based on FPD/consent state', function () {
     it("Should call the server for new partner if FPD has been updated by other partner, and 72 hours have not yet passed.", async () => {
       const allowedStorage = ['html5'];
       const newPartnerId = 12345;
@@ -1133,26 +773,6 @@ describe('IntentIQ tests', function () {
       expect(request.url).to.contain(testAPILink);
     });
 
-    it('should make request to correct address with iiqPixelServerAddress parameter', async function() {
-      const callbackConfigParams = {
-        params: {
-          partner: partner,
-          pai,
-          partnerClientIdType,
-          partnerClientId,
-          browserBlackList: 'Chrome',
-          iiqPixelServerAddress: syncTestAPILink,
-          callback: () => {}
-        }
-      };
-
-      intentIqIdSubmodule.getId({ ...callbackConfigParams });
-      await waitForClientHints();
-
-      const request = server.requests[0];
-      expect(request.url).to.contain(syncTestAPILink);
-    });
-
     regionCases.forEach(({ name, region, expected }) => {
       it(`should use region-specific api endpoint when region is "${name}"`, async function () {
         mockConsentHandlers(uspData, gppData, gdprData); // gdprApplies = true
@@ -1173,36 +793,6 @@ describe('IntentIQ tests', function () {
         expect(request.url).to.contain(expected);
       });
     });
-
-    syncRegionCases.forEach(({ name, region, expected }) => {
-      it(`should use region-specific sync endpoint when region is "${name}"`, async function () {
-        let wasCallbackCalled = false;
-
-        const callbackConfigParams = {
-          params: {
-            partner,
-            pai,
-            partnerClientIdType,
-            partnerClientId,
-            browserBlackList: 'Chrome',
-            region,
-            callback: () => {
-              wasCallbackCalled = true;
-            }
-          }
-        };
-
-        mockConsentHandlers(uspData, gppData, gdprData);
-
-        intentIqIdSubmodule.getId(callbackConfigParams);
-
-        await waitForClientHints();
-
-        const request = server.requests[0];
-        expect(request.url).to.contain(expected);
-        expect(wasCallbackCalled).to.equal(true);
-      });
-    });
   });
 
   it('should get and save client hints to storage', async () => {
@@ -1217,77 +807,6 @@ describe('IntentIQ tests', function () {
     const savedClientHints = readData(CLIENT_HINTS_KEY, ['html5']);
     const expectedClientHints = handleClientHints(testClientHints);
     expect(savedClientHints).to.equal(expectedClientHints);
-  });
-
-  it('should add clientHints to the URL if provided', function () {
-    const firstPartyData = {};
-    const clientHints = 'exampleClientHints';
-    const configParams = { partner: 'testPartner', domainName: 'example.com' };
-    const partnerData = {};
-    const cmpData = {};
-    const url = createPixelUrl(firstPartyData, clientHints, configParams, partnerData, cmpData);
-
-    expect(url).to.include(`&uh=${encodeURIComponent(clientHints)}`);
-  });
-
-  it('should not add clientHints to the URL if not provided', function () {
-    const firstPartyData = {};
-    const configParams = { partner: 'testPartner', domainName: 'example.com' };
-    const partnerData = {};
-    const cmpData = {};
-    const url = createPixelUrl(firstPartyData, undefined, configParams, partnerData, cmpData);
-
-    expect(url).to.not.include('&uh=');
-  });
-
-  it('should include testPercentage with configured abPercentage in pixel URL', function () {
-    const firstPartyData = {};
-    const configParams = { partner: 'testPartner', domainName: 'example.com', abPercentage: 70 };
-    const partnerData = {};
-    const cmpData = {};
-    const url = createPixelUrl(firstPartyData, undefined, configParams, partnerData, cmpData);
-
-    expect(url).to.include('&testPercentage=70');
-  });
-
-  it('should not include testPercentage when abPercentage is not configured in pixel URL', function () {
-    const firstPartyData = {};
-    const configParams = { partner: 'testPartner', domainName: 'example.com' };
-    const partnerData = {};
-    const cmpData = {};
-    const url = createPixelUrl(firstPartyData, undefined, configParams, partnerData, cmpData);
-
-    expect(url).to.not.include('testPercentage');
-  });
-
-  it('should include testPercentage=0 when abPercentage is explicitly 0 in pixel URL', function () {
-    const firstPartyData = {};
-    const configParams = { partner: 'testPartner', domainName: 'example.com', abPercentage: 0 };
-    const partnerData = {};
-    const cmpData = {};
-    const url = createPixelUrl(firstPartyData, undefined, configParams, partnerData, cmpData);
-
-    expect(url).to.include('&testPercentage=0');
-  });
-
-  it('should clamp abPercentage out of range in pixel URL', function () {
-    const firstPartyData = {};
-    const configParams = { partner: 'testPartner', domainName: 'example.com', abPercentage: 150 };
-    const partnerData = {};
-    const cmpData = {};
-    const url = createPixelUrl(firstPartyData, undefined, configParams, partnerData, cmpData);
-
-    expect(url).to.include('&testPercentage=100');
-  });
-
-  it('should include isInTestGroup in pixel URL', function () {
-    const firstPartyData = {};
-    const configParams = { partner: 'testPartner', domainName: 'example.com', abPercentage: 100 };
-    const partnerData = {};
-    const cmpData = {};
-    const url = createPixelUrl(firstPartyData, undefined, configParams, partnerData, cmpData);
-
-    expect(url).to.include('&isInTestGroup=');
   });
 
   it('should sends uh from LS immediately and later updates LS with fresh CH', async () => {
@@ -1357,86 +876,6 @@ describe('IntentIQ tests', function () {
     expect(saved === '' || saved === null).to.be.true;
 
     uadStub.restore();
-  });
-
-  it('blacklist: should use uh from LS immediately and updates LS when CH resolves', async () => {
-    localStorage.setItem(CLIENT_HINTS_KEY, 'OLD_CH_VALUE');
-    const { resolve, stub } = stubCHDeferred(); // getHighEntropyValues returns pending promise
-    const blk = detectBrowser();
-    const cfg = { params: { ...defaultConfigParams.params, browserBlackList: blk, chTimeout: 50 } };
-
-    intentIqIdSubmodule.getId(cfg);
-
-    const firstReq = server.requests[0];
-    expect(firstReq).to.exist;
-    expect(firstReq.url).to.include('at=20');
-    expect(firstReq.url).to.include('&uh=OLD_CH_VALUE');
-    expect(server.requests.length).to.equal(1);
-
-    // Now deliver fresh CH from browser and wait for background handlers
-    resolve(testClientHints);
-    await waitForClientHints();
-
-    // LS updated, network not re-fired
-    const expectedFresh = handleClientHints(testClientHints);
-    expect(readData(CLIENT_HINTS_KEY, ['html5'])).to.equal(expectedFresh);
-    expect(server.requests.length).to.equal(1);
-
-    stub.restore();
-  });
-
-  it('blacklist: should send sync with uh when CH supported and ready', async () => {
-    localStorage.removeItem(CLIENT_HINTS_KEY);
-    const expectedCH = handleClientHints(testClientHints);
-
-    let uadStub = sinon.stub(navigator, 'userAgentData').value({
-      getHighEntropyValues: async () => testClientHints
-    });
-
-    const blk = detectBrowser();
-    const cfg = {
-      params: {
-        ...defaultConfigParams.params,
-        browserBlackList: blk,
-        chTimeout: 300
-      }
-    };
-
-    intentIqIdSubmodule.getId(cfg);
-    await waitForClientHints();
-
-    const req = server.requests[0];
-    expect(req).to.exist;
-    expect(req.url).to.include('at=20');
-    expect(req.url).to.include(`&uh=${encodeURIComponent(expectedCH)}`);
-    expect(readData(CLIENT_HINTS_KEY, ['html5'])).to.equal(expectedCH);
-
-    uadStub.restore();
-  });
-
-  it('blacklist: sends sync with uh when CH supported and ready', async () => {
-    const expectedCH = handleClientHints(testClientHints);
-    Object.defineProperty(navigator, 'userAgentData', {
-      value: { getHighEntropyValues: async () => testClientHints },
-      configurable: true
-    });
-    const blk = detectBrowser();
-    const cfg = {
-      params: {
-        ...defaultConfigParams.params,
-        browserBlackList: blk,
-        chTimeout: 300
-      }
-    };
-
-    intentIqIdSubmodule.getId(cfg);
-    await waitForClientHints();
-
-    const req = server.requests[0];
-    expect(req).to.exist;
-    expect(req.url).to.include('at=20');
-    expect(req.url).to.include(`&uh=${encodeURIComponent(expectedCH)}`);
-    expect(readData(CLIENT_HINTS_KEY, ['html5'])).to.equal(expectedCH);
   });
 
   it('should return true if CMP strings are the same', function () {
@@ -1530,190 +969,23 @@ describe('IntentIQ tests', function () {
     expect(isCMPStringTheSame(fpData, cmpData)).to.be.false;
   });
 
-  describe('appendCMPData via createPixelUrl', function () {
-    const baseParams = { partner: 'testPartner', domainName: 'example.com' };
-
-    it('should not include us_privacy in URL when uspString is null', function () {
-      const cmpData = { uspString: null, gppString: null, gdprApplies: false, gdprString: null };
-      const url = createPixelUrl({}, undefined, baseParams, {}, cmpData);
-      expect(url).to.not.include('us_privacy');
-    });
-
-    it('should not include us_privacy in URL when uspString is the string "undefined"', function () {
-      const cmpData = { uspString: 'undefined', gppString: null, gdprApplies: false, gdprString: null };
-      const url = createPixelUrl({}, undefined, baseParams, {}, cmpData);
-      expect(url).to.not.include('us_privacy');
-    });
-
-    it('should include us_privacy in URL when uspString is a valid string', function () {
-      const cmpData = { uspString: '1NYN', gppString: null, gdprApplies: false, gdprString: null };
-      const url = createPixelUrl({}, undefined, baseParams, {}, cmpData);
-      expect(url).to.include(`&us_privacy=${encodeURIComponent('1NYN')}`);
-    });
-
-    it('should not include gpp in URL when gppString is null', function () {
-      const cmpData = { uspString: null, gppString: null, gdprApplies: false, gdprString: null };
-      const url = createPixelUrl({}, undefined, baseParams, {}, cmpData);
-      expect(url).to.not.include('&gpp=');
-    });
-
-    it('should not include gpp in URL when gppString is the string "undefined"', function () {
-      const cmpData = { uspString: null, gppString: 'undefined', gdprApplies: false, gdprString: null };
-      const url = createPixelUrl({}, undefined, baseParams, {}, cmpData);
-      expect(url).to.not.include('&gpp=');
-    });
-
-    it('should include gdpr=1 without gdpr_consent when gdprApplies is true and gdprString is null', function () {
-      const cmpData = { uspString: null, gppString: null, gdprApplies: true, gdprString: null };
-      const url = createPixelUrl({}, undefined, baseParams, {}, cmpData);
-      expect(url).to.include('&gdpr=1');
-      expect(url).to.not.include('gdpr_consent');
-    });
-
-    it('should include gdpr=1 without gdpr_consent when gdprApplies is true and gdprString is "undefined"', function () {
-      const cmpData = { uspString: null, gppString: null, gdprApplies: true, gdprString: 'undefined' };
-      const url = createPixelUrl({}, undefined, baseParams, {}, cmpData);
-      expect(url).to.include('&gdpr=1');
-      expect(url).to.not.include('gdpr_consent');
-    });
-
-    it('should include gdpr=1 and gdpr_consent when gdprApplies is true and gdprString is valid', function () {
-      const cmpData = { uspString: null, gppString: null, gdprApplies: true, gdprString: 'validConsent' };
-      const url = createPixelUrl({}, undefined, baseParams, {}, cmpData);
-      expect(url).to.include('&gdpr=1');
-      expect(url).to.include(`&gdpr_consent=${encodeURIComponent('validConsent')}`);
-    });
-
-    it('should include gdpr=0 and no gdpr_consent when gdprApplies is false', function () {
-      const cmpData = { uspString: null, gppString: null, gdprApplies: false, gdprString: null };
-      const url = createPixelUrl({}, undefined, baseParams, {}, cmpData);
-      expect(url).to.include('&gdpr=0');
-      expect(url).to.not.include('gdpr_consent');
-    });
-  });
-
   it('should run callback from params', async () => {
     let wasCallbackCalled = false;
     const callbackConfigParams = {
       params: {
         partner: partner,
-        pai,
         partnerClientIdType,
         partnerClientId,
-        browserBlackList: 'Chrome',
         callback: () => {
           wasCallbackCalled = true;
         }
       }
     };
 
-    await intentIqIdSubmodule.getId(callbackConfigParams);
+    intentIqIdSubmodule.getId(callbackConfigParams);
+    await waitForClientHints();
     expect(wasCallbackCalled).to.equal(true);
   });
-
-  it('should send sourceMetaData in AT=39 if it exists in configParams', async function () {
-    const translatedMetaDataValue = translateMetadata(sourceMetaData);
-    const callBackSpy = sinon.spy();
-    const submoduleCallback = intentIqIdSubmodule.getId(allConfigParams).callback;
-    submoduleCallback(callBackSpy);
-    await waitForClientHints();
-
-    const request = server.requests[0];
-
-    expect(request.url).to.include('?at=39');
-    expect(request.url).to.include(`fbp=${translatedMetaDataValue}`);
-  });
-
-  it('should NOT send sourceMetaData and sourceMetaDataExternal in AT=39 if it is undefined', async function () {
-    const callBackSpy = sinon.spy();
-    const configParams = { params: { ...allConfigParams.params, sourceMetaData: undefined } };
-    const submoduleCallback = intentIqIdSubmodule.getId(configParams).callback;
-    submoduleCallback(callBackSpy);
-    await waitForClientHints();
-
-    const request = server.requests[0];
-
-    expect(request.url).to.include('?at=39');
-    expect(request.url).not.to.include('fbp=');
-  });
-
-  it('should NOT send sourceMetaData in AT=39 if value is NAN', async function () {
-    const callBackSpy = sinon.spy();
-    const configParams = { params: { ...allConfigParams.params, sourceMetaData: NaN } };
-    const submoduleCallback = intentIqIdSubmodule.getId(configParams).callback;
-    submoduleCallback(callBackSpy);
-    await waitForClientHints();
-    const request = server.requests[0];
-
-    expect(request.url).to.include('?at=39');
-    expect(request.url).not.to.include('fbp=');
-  });
-
-  it('should send sourceMetaData in AT=20 if it exists in configParams', async function () {
-    const translatedMetaDataValue = translateMetadata(sourceMetaData);
-    const configParams = { params: { ...allConfigParams.params, browserBlackList: 'chrome' } };
-
-    intentIqIdSubmodule.getId(configParams);
-    await waitForClientHints();
-    const request = server.requests[0];
-
-    expect(request.url).to.include('?at=20');
-    expect(request.url).to.include(`fbp=${translatedMetaDataValue}`);
-  });
-
-  it('should NOT send sourceMetaData in AT=20 if value is NAN', async function () {
-    const configParams = { params: { ...allConfigParams.params, sourceMetaData: NaN, browserBlackList: 'chrome' } };
-
-    intentIqIdSubmodule.getId(configParams);
-    await waitForClientHints();
-    const request = server.requests[0];
-
-    expect(request.url).to.include('?at=20');
-    expect(request.url).to.not.include('&fbp=');
-  });
-
-  it('should send pcid and idtype in AT=20 if it provided in config', async function () {
-    const partnerClientId = 'partnerClientId 123';
-    const partnerClientIdType = 0;
-    const configParams = { params: { ...allConfigParams.params, browserBlackList: 'chrome', partnerClientId, partnerClientIdType } };
-
-    intentIqIdSubmodule.getId(configParams);
-    await waitForClientHints();
-    const request = server.requests[0];
-
-    expect(request.url).to.include('?at=20');
-    expect(request.url).to.include(`&pcid=${encodeURIComponent(partnerClientId)}`);
-    expect(request.url).to.include(`&idtype=${partnerClientIdType}`);
-  });
-
-  it('should NOT send pcid and idtype in AT=20 if partnerClientId is NOT a string', async function () {
-    const partnerClientId = 123;
-    const partnerClientIdType = 0;
-    const configParams = { params: { ...allConfigParams.params, browserBlackList: 'chrome', partnerClientId, partnerClientIdType } };
-
-    intentIqIdSubmodule.getId(configParams);
-    await waitForClientHints();
-    const request = server.requests[0];
-
-    expect(request.url).to.include('?at=20');
-    expect(request.url).not.to.include(`&pcid=`);
-    expect(request.url).not.to.include(`&idtype=`);
-  });
-
-  it('should NOT send pcid and idtype in AT=20 if partnerClientIdType is NOT a number', async function () {
-    const partnerClientId = 'partnerClientId 123';
-    const partnerClientIdType = 'wrong';
-    const configParams = { params: { ...allConfigParams.params, browserBlackList: 'chrome', partnerClientId, partnerClientIdType } };
-
-    intentIqIdSubmodule.getId(configParams);
-    await waitForClientHints();
-    const request = server.requests[0];
-
-    expect(request.url).to.include('?at=20');
-    expect(request.url).not.to.include(`&pcid=`);
-    expect(request.url).not.to.include(`&idtype=`);
-  });
-
   it('should send partnerClientId and partnerClientIdType in AT=39 if it provided in config', async function () {
     const partnerClientId = 'partnerClientId 123';
     const partnerClientIdType = 0;
@@ -1761,44 +1033,6 @@ describe('IntentIQ tests', function () {
     expect(request.url).not.to.include(`&pcid=${partnerClientId}`);
     expect(request.url).not.to.include(`&idtype=${partnerClientIdType}`);
   });
-
-  it('should NOT send sourceMetaData in AT=20 if sourceMetaDataExternal provided', async function () {
-    const configParams = { params: { ...allConfigParams.params, browserBlackList: 'chrome', sourceMetaDataExternal: 123 } };
-
-    intentIqIdSubmodule.getId(configParams);
-    await waitForClientHints();
-    const request = server.requests[0];
-
-    expect(request.url).to.include('?at=20');
-    expect(request.url).to.include('&fbp=123');
-  });
-
-  it('should store first party data under the silo key when siloEnabled is true', async function () {
-    const configParams = { params: { ...allConfigParams.params, siloEnabled: true } };
-
-    intentIqIdSubmodule.getId(configParams);
-    await waitForClientHints();
-    const expectedKey = FIRST_PARTY_KEY + '_p_' + configParams.params.partner;
-    const storedData = localStorage.getItem(expectedKey);
-    const parsed = JSON.parse(storedData);
-
-    expect(storedData).to.be.a('string');
-    expect(localStorage.getItem(FIRST_PARTY_KEY)).to.be.null;
-    expect(parsed).to.have.property('pcid');
-  });
-
-  it('should send siloEnabled value in the request', async function () {
-    const callBackSpy = sinon.spy();
-    const configParams = { params: { ...allConfigParams.params, siloEnabled: true } };
-    const submoduleCallback = intentIqIdSubmodule.getId(configParams).callback;
-    submoduleCallback(callBackSpy);
-    await waitForClientHints();
-
-    const request = server.requests[0];
-
-    expect(request.url).to.contain(`&japs=${configParams.params.siloEnabled}`);
-  });
-
   it('should increment callCount when valid eids are returned', async function () {
     const firstPartyDataKey = '_iiq_fdata_' + partner;
     const partnerData = { callCount: 0, failCount: 0, noDataCounter: 0 };
@@ -1857,158 +1091,13 @@ describe('IntentIQ tests', function () {
     expect(updatedData.noDataCounter).to.equal(1);
   });
 
-  it('should send additional parameters in sync request due to configuration', async function () {
-    const configParams = {
-      params: {
-        ...defaultConfigParams.params,
-        browserBlackList: 'chrome',
-        additionalParams: [{
-          parameterName: 'general',
-          parameterValue: 'Lee',
-          destination: [1, 0, 0]
-        }]
-      }
-    };
-
-    intentIqIdSubmodule.getId(configParams);
-    await waitForClientHints();
-    const syncRequest = server.requests[0];
-
-    expect(syncRequest.url).to.include('general=Lee');
-  });
-  it('should send additionalParams in VR request', async function () {
-    const configParams = {
-      params: {
-        ...defaultConfigParams.params,
-        additionalParams: [{
-          parameterName: 'general',
-          parameterValue: 'Lee',
-          destination: [0, 1, 0]
-        }]
-      }
-    };
-
-    const callBackSpy = sinon.spy();
-    const submoduleCallback = intentIqIdSubmodule.getId(configParams).callback;
-    submoduleCallback(callBackSpy);
-    await waitForClientHints();
-    const vrRequest = server.requests[0];
-
-    expect(vrRequest.url).to.include('general=Lee');
-  });
-
-  it('should not send additionalParams in case it is not an array', async function () {
-    const configParams = {
-      params: {
-        ...defaultConfigParams.params,
-        additionalParams: {
-          parameterName: 'general',
-          parameterValue: 'Lee',
-          destination: [0, 1, 0]
-        }
-      }
-    };
-
-    const callBackSpy = sinon.spy();
-    const submoduleCallback = intentIqIdSubmodule.getId(configParams).callback;
-    submoduleCallback(callBackSpy);
-    await waitForClientHints();
-    const vrRequest = server.requests[0];
-
-    expect(vrRequest.url).not.to.include('general=');
-  });
-
-  it('should not send additionalParams in case request url is too long', async function () {
-    const longValue = 'x'.repeat(5000000); // simulate long parameter
-    const configParams = {
-      params: {
-        ...defaultConfigParams.params,
-        additionalParams: [{
-          parameterName: 'general',
-          parameterValue: longValue,
-          destination: [0, 1, 0]
-        }]
-      }
-    };
-
-    const callBackSpy = sinon.spy();
-    const submoduleCallback = intentIqIdSubmodule.getId(configParams).callback;
-    submoduleCallback(callBackSpy);
-    await waitForClientHints();
-    const vrRequest = server.requests[0];
-
-    expect(vrRequest.url).not.to.include('general=');
-  });
-
-  it('should call groupChanged with "withoutIIQ" when terminationCause is 41', async function () {
-    const groupChangedSpy = sinon.spy();
-    const callBackSpy = sinon.spy();
-    const configParams = {
-      params: {
-        ...defaultConfigParams.params,
-        groupChanged: groupChangedSpy
-      }
-    };
-
-    const submoduleCallback = intentIqIdSubmodule.getId(configParams).callback;
-    submoduleCallback(callBackSpy);
-    await waitForClientHints();
-
-    const request = server.requests[0];
-    request.respond(
-      200,
-      responseHeader,
-      JSON.stringify({
-        tc: 41,
-        isOptedOut: false,
-        data: { eids: [] }
-      })
-    );
-
-    expect(callBackSpy.calledOnce).to.be.true;
-    expect(groupChangedSpy.calledWith(WITHOUT_IIQ)).to.be.true;
-  });
-
-  it('should call groupChanged with "withIIQ" when terminationCause is NOT 41', async function () {
-    const groupChangedSpy = sinon.spy();
-    const callBackSpy = sinon.spy();
-    const configParams = {
-      params: {
-        ...defaultConfigParams.params,
-        groupChanged: groupChangedSpy
-      }
-    };
-
-    const submoduleCallback = intentIqIdSubmodule.getId(configParams).callback;
-    submoduleCallback(callBackSpy);
-    await waitForClientHints();
-
-    const request = server.requests[0];
-    request.respond(
-      200,
-      responseHeader,
-      JSON.stringify({
-        tc: 35,
-        isOptedOut: false,
-        data: { eids: [] }
-      })
-    );
-
-    expect(callBackSpy.calledOnce).to.be.true;
-    expect(groupChangedSpy.calledWith(WITH_IIQ)).to.be.true;
-  });
-
   it('should use group provided by partner', async function () {
-    const groupChangedSpy = sinon.spy();
     const callBackSpy = sinon.spy();
     const usedGroup = 'B';
-    const ABTestingConfigurationSource = 'group';
     const configParams = {
       params: {
         ...defaultConfigParams.params,
-        ABTestingConfigurationSource,
-        group: usedGroup,
-        groupChanged: groupChangedSpy
+        group: usedGroup
       }
     };
 
@@ -2023,95 +1112,8 @@ describe('IntentIQ tests', function () {
     );
 
     expect(request.url).to.contain(`abtg=${usedGroup}`);
-    expect(request.url).to.contain(`ABTestingConfigurationSource=${ABTestingConfigurationSource}`);
+    expect(request.url).to.contain('ABTestingConfigurationSource=group');
     expect(request.url).to.contain(`testGroup=${usedGroup}`);
     expect(callBackSpy.calledOnce).to.be.true;
-    expect(groupChangedSpy.calledWith(usedGroup)).to.be.true;
-  });
-
-  it('should NOT call groupChanged when the current browser is blacklisted', async function () {
-    const groupChangedSpy = sinon.spy();
-    const blk = detectBrowser();
-    const configParams = {
-      params: {
-        ...defaultConfigParams.params,
-        browserBlackList: blk,
-        groupChanged: groupChangedSpy
-      }
-    };
-
-    intentIqIdSubmodule.getId(configParams);
-    await waitForClientHints();
-
-    expect(groupChangedSpy.called).to.be.false;
-  });
-
-  it('should not mark a test group on the sync pixel when the current browser is blacklisted', async function () {
-    const blk = detectBrowser();
-    const configParams = {
-      params: {
-        ...defaultConfigParams.params,
-        browserBlackList: blk
-      }
-    };
-
-    intentIqIdSubmodule.getId(configParams);
-    await waitForClientHints();
-
-    const pixelRequest = server.requests[0];
-    expect(pixelRequest).to.exist;
-    expect(pixelRequest.url).to.include('at=20');
-    expect(pixelRequest.url).to.not.include('testGroup=');
-    expect(pixelRequest.url).to.include('isInTestGroup=false');
-  });
-
-  it('should include testPercentage with configured abPercentage in AT=39 URL', async function () {
-    const callBackSpy = sinon.spy();
-    const configParams = {
-      params: { ...defaultConfigParams.params, abPercentage: 70 }
-    };
-    const submoduleCallback = intentIqIdSubmodule.getId(configParams).callback;
-    submoduleCallback(callBackSpy);
-    await waitForClientHints();
-    const request = server.requests[0];
-
-    expect(request.url).to.contain('testPercentage=70');
-  });
-
-  it('should not include testPercentage in AT=39 URL when abPercentage is not configured', async function () {
-    const callBackSpy = sinon.spy();
-    const configParams = { params: { partner } };
-    const submoduleCallback = intentIqIdSubmodule.getId(configParams).callback;
-    submoduleCallback(callBackSpy);
-    await waitForClientHints();
-    const request = server.requests[0];
-
-    expect(request.url).to.not.contain('testPercentage');
-  });
-
-  it('should include testPercentage=0 when abPercentage is explicitly 0 in AT=39 URL', async function () {
-    const callBackSpy = sinon.spy();
-    const configParams = {
-      params: { ...defaultConfigParams.params, abPercentage: 0 }
-    };
-    const submoduleCallback = intentIqIdSubmodule.getId(configParams).callback;
-    submoduleCallback(callBackSpy);
-    await waitForClientHints();
-    const request = server.requests[0];
-
-    expect(request.url).to.contain('testPercentage=0');
-  });
-
-  it('should clamp abPercentage out of range in AT=39 URL', async function () {
-    const callBackSpy = sinon.spy();
-    const configParams = {
-      params: { ...defaultConfigParams.params, abPercentage: 150 }
-    };
-    const submoduleCallback = intentIqIdSubmodule.getId(configParams).callback;
-    submoduleCallback(callBackSpy);
-    await waitForClientHints();
-    const request = server.requests[0];
-
-    expect(request.url).to.contain('testPercentage=100');
   });
 });
