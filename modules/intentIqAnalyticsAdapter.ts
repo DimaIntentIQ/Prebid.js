@@ -11,7 +11,8 @@ import { getUnitPosition } from '../libraries/intentIqUtils/getUnitPosition.ts';
 import {
   VERSION,
   PREBID,
-  WITH_IIQ
+  WITH_IIQ,
+  GVLID
 } from '../libraries/intentIqConstants/intentIqConstants.ts';
 import { reportingServerAddress } from '../libraries/intentIqUtils/intentIqConfig.ts';
 import { handleAdditionalParams } from '../libraries/intentIqUtils/handleAdditionalParams.ts';
@@ -693,7 +694,8 @@ iiqAnalyticsAnalyticsAdapter.disableAnalytics = function(): void {
 };
 adapterManager.registerAnalyticsAdapter({
   adapter: iiqAnalyticsAnalyticsAdapter,
-  code: MODULE_NAME
+  code: MODULE_NAME,
+  gvlid: GVLID
 });
 
 export default iiqAnalyticsAnalyticsAdapter;

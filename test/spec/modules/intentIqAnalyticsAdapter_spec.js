@@ -10,6 +10,7 @@ import { config } from "src/config.js";
 import { EVENTS } from "src/constants.js";
 import * as events from "src/events.js";
 import { getGlobal } from "../../../src/prebidGlobal.js";
+import adapterManager from "../../../src/adapterManager.js";
 import sinon from "sinon";
 import {
   FIRST_PARTY_KEY,
@@ -17,6 +18,7 @@ import {
   VERSION,
   WITHOUT_IIQ,
   AB_CONFIG_SOURCE,
+  GVLID,
 } from "../../../libraries/intentIqConstants/intentIqConstants.js";
 import * as detectBrowserUtils from "../../../libraries/intentIqUtils/detectBrowserUtils.js";
 import {
@@ -27,6 +29,7 @@ import {
   gppDataHandler,
   uspDataHandler,
   gdprDataHandler,
+  GDPR_GVLIDS,
 } from "../../../src/consentHandler.js";
 
 let getConfigStub;
@@ -213,6 +216,14 @@ describe("IntentIQ tests all", function () {
     localStorage.clear();
     server.reset();
     delete window[`iiq_identity_${partner}`];
+  });
+
+  it("registers itself with the adapter manager with IntentIQ GVL ID", function () {
+    const adapter = adapterManager.getAnalyticsAdapter("iiqAnalytics");
+    expect(adapter).to.exist;
+    expect(adapter.adapter).to.equal(iiqAnalyticsAnalyticsAdapter);
+    expect(adapter.gvlid).to.equal(GVLID);
+    expect(GDPR_GVLIDS.get("iiqAnalytics").gvlid).to.equal(GVLID);
   });
 
   it("should send POST request with payload in request body if reportMethod is POST", function () {
