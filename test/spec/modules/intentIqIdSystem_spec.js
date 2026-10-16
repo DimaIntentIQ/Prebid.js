@@ -615,6 +615,54 @@ describe('IntentIQ tests', function () {
     expect(callBackSpy.args[0][0]).to.deep.equal([testResponseWithValues.data]);
   });
 
+  describe('wsrvcll (was server called) flag', function () {
+    const globalName = `iiq_identity_${partner}`;
+
+    beforeEach(function () {
+      // every test starts as a new page: no global object yet
+      delete window[globalName];
+    });
+
+    it('should set wsrvcll to true in global partnerData when VR request is sent', async function () {
+      const submoduleCallback = intentIqIdSubmodule.getId(defaultConfigParams).callback;
+      submoduleCallback(sinon.spy());
+      await waitForClientHints();
+      expect(server.requests.length).to.equal(1);
+      expect(server.requests[0].url).to.contain('at=39');
+      expect(window[globalName].wsrvcll).to.be.true;
+      expect(window[globalName].partnerData.wsrvcll).to.be.true;
+    });
+
+    it('should keep wsrvcll true when getId is called again on the same page without a new VR request', async function () {
+      const submoduleCallback = intentIqIdSubmodule.getId(defaultConfigParams).callback;
+      submoduleCallback(sinon.spy());
+      await waitForClientHints();
+      server.requests[0].respond(
+        200,
+        responseHeader,
+        JSON.stringify({ ...testResponseWithValues, cttl: 9999999 })
+      );
+      expect(window[globalName].partnerData.wsrvcll, 'wsrvcll after first VR request').to.be.true;
+
+      // Second getId on the same page (e.g. pbjs.refreshUserIds()): cttl is still valid, so no VR request
+      const secondResult = intentIqIdSubmodule.getId(defaultConfigParams);
+      await waitForClientHints();
+      expect(secondResult.callback).to.be.undefined;
+      expect(server.requests.length).to.equal(1);
+      expect(window[globalName].partnerData.wsrvcll, 'wsrvcll after second getId').to.be.true;
+    });
+
+    it('should set wsrvcll to false on a new page without VR request even if LS has wsrvcll true from previous page load', function () {
+      const now = Date.now();
+      localStorage.setItem(FIRST_PARTY_KEY, JSON.stringify({ pcid: 'test_pcid', pcidDate: now, sCal: now }));
+      localStorage.setItem('_iiq_fdata_' + partner, JSON.stringify({ ...testLSValueWithData, wsrvcll: true }));
+      const returnedValue = intentIqIdSubmodule.getId(defaultConfigParams);
+      expect(returnedValue.callback).to.be.undefined;
+      expect(server.requests.length).to.equal(0);
+      expect(window[globalName].partnerData.wsrvcll).to.be.false;
+    });
+  });
+
   it('return data stored in local storage ', function () {
     localStorage.setItem('_iiq_fdata_' + partner, JSON.stringify(testLSValueWithData));
     const returnedValue = intentIqIdSubmodule.getId(allConfigParams);

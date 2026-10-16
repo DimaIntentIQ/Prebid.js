@@ -564,10 +564,7 @@ export const intentIqIdSubmodule = {
     if (typeof partnerData.callCount === 'number') callCount = partnerData.callCount;
     if (typeof partnerData.failCount === 'number') failCount = partnerData.failCount;
     if (typeof partnerData.noDataCounter === 'number') noDataCount = partnerData.noDataCounter;
-    if (partnerData.wsrvcll) {
-      partnerData.wsrvcll = false;
-      storeData(PARTNER_DATA_KEY, JSON.stringify(partnerData), allowedStorage, firstPartyData);
-    }
+    partnerData.wsrvcll = (window as any)[globalName].wsrvcll === true;
 
     if (partnerData.data) {
       if (partnerData.data.length) { // encrypted data
@@ -798,7 +795,7 @@ export const intentIqIdSubmodule = {
         }
       };
 
-      partnerData.wsrvcll = true;
+      (window as any)[globalName].wsrvcll = partnerData.wsrvcll = true;
       storeData(PARTNER_DATA_KEY, JSON.stringify(partnerData), allowedStorage, firstPartyData);
       clearCountersAndStore(allowedStorage, partnerData);
 
