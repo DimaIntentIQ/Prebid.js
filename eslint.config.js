@@ -16,7 +16,7 @@ function jsPattern(name) {
 }
 
 function tsPattern(name) {
-  return [`${name}/**/*.ts`]
+  return [`${name}/**/*.ts`, `${name}/**/*.mts`]
 }
 
 function sourcePattern(name) {
@@ -78,6 +78,7 @@ module.exports = [
       'test/build-logic/fixtures/**/*',
       ...jsPattern('plugins'),
       ...jsPattern('.github'),
+      'web-bundler'
     ],
   },
   jsdoc.configs['flat/recommended'],
