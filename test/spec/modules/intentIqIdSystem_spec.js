@@ -15,7 +15,7 @@ import { gppDataHandler, uspDataHandler, gdprDataHandler } from '../../../src/co
 import { clearAllCookies } from '../../helpers/cookies.js';
 import { detectBrowser, detectBrowserFromUserAgent, detectBrowserFromUserAgentData } from '../../../libraries/intentIqUtils/detectBrowserUtils.js';
 import { CLIENT_HINTS_KEY, FIRST_PARTY_KEY, PREBID, WITH_IIQ, WITHOUT_IIQ } from '../../../libraries/intentIqConstants/intentIqConstants.js';
-import { decryptData } from '../../../libraries/intentIqUtils/cryptionUtils.js';
+import { decryptData, encryptData } from '../../../libraries/intentIqUtils/cryptionUtils.js';
 
 const partner = 10;
 const pai = '11';
@@ -660,6 +660,267 @@ describe('IntentIQ tests', function () {
       expect(returnedValue.callback).to.be.undefined;
       expect(server.requests.length).to.equal(0);
       expect(window[globalName].partnerData.wsrvcll).to.be.false;
+    });
+  });
+
+  describe('rrtt (request round-trip time) in global object', function () {
+    const globalName = `iiq_identity_${partner}`;
+
+    beforeEach(function () {
+      // every test starts as a new page: no global object yet
+      delete window[globalName];
+    });
+
+    afterEach(async function () {
+      await waitForClientHints(); // flush pending getId timers before they write to the global object
+      delete window[globalName];
+    });
+
+    it('should set rrtt on the global object after a successful VR response', async function () {
+      const submoduleCallback = intentIqIdSubmodule.getId(defaultConfigParams).callback;
+      submoduleCallback(sinon.spy());
+      await waitForClientHints();
+      clock.tick(40);
+      server.requests[0].respond(200, responseHeader, JSON.stringify(testResponseWithValues));
+
+      const partnerDataFromLS = JSON.parse(localStorage.getItem('_iiq_fdata_' + partner));
+      expect(window[globalName].rrtt).to.be.a('number').and.to.be.at.least(40);
+      expect(window[globalName].rrtt).to.equal(partnerDataFromLS.rrtt);
+    });
+
+    it('should not take rrtt from LS into the global object on a page without VR request', function () {
+      const now = Date.now();
+      localStorage.setItem(FIRST_PARTY_KEY, JSON.stringify({ pcid: 'test_pcid', pcidDate: now, sCal: now }));
+      localStorage.setItem('_iiq_fdata_' + partner, JSON.stringify(testLSValueWithData));
+      const returnedValue = intentIqIdSubmodule.getId(defaultConfigParams);
+
+      expect(returnedValue.callback).to.be.undefined;
+      expect(server.requests.length).to.equal(0);
+      expect(window[globalName]).to.not.have.property('rrtt');
+    });
+
+    it('rrtt = elapsed on VR network error', async function () {
+      const submoduleCallback = intentIqIdSubmodule.getId(defaultConfigParams).callback;
+      submoduleCallback(sinon.spy()); // VR start time is taken here
+      await clock.tickAsync(20); // client hints wait (chTimeout is 10ms)
+      expect(server.requests.length).to.equal(1);
+      clock.tick(70);
+      server.requests[0].respond(500, responseHeader, '');
+
+      expect(window[globalName].rrtt).to.equal(20 + 70);
+      expect(window[globalName].wsrvcll).to.be.true;
+    });
+
+    it('rrtt = -1 on VR timeout', async function () {
+      const submoduleCallback = intentIqIdSubmodule.getId(defaultConfigParams).callback;
+      submoduleCallback(sinon.spy());
+      await waitForClientHints();
+      clock.tick(70);
+      // what fetch rejects with when the ajax timeout aborts the request
+      server.requests[0].error(new DOMException('signal is aborted without reason', 'AbortError'));
+
+      expect(window[globalName].rrtt).to.equal(-1);
+      expect(window[globalName].wsrvcll).to.be.true;
+    });
+
+    it('should keep sending rrtt from LS in the next VR request', async function () {
+      localStorage.setItem('_iiq_fdata_' + partner, JSON.stringify(testLSValue));
+      const submoduleCallback = intentIqIdSubmodule.getId(defaultConfigParams).callback;
+      submoduleCallback(sinon.spy());
+      await waitForClientHints();
+
+      expect(server.requests[0].url).to.contain('rrtt=' + testLSValue.rrtt);
+      expect(window[globalName]).to.not.have.property('rrtt');
+    });
+  });
+
+  describe('eidt (eids read time) in global object', function () {
+    const globalName = `iiq_identity_${partner}`;
+    const vrResponseWithEids = { ...testResponseWithValues, data: { eids: ['vr_eid'] } };
+
+    beforeEach(function () {
+      // every test starts as a new page: no global object yet
+      delete window[globalName];
+    });
+
+    afterEach(async function () {
+      await waitForClientHints(); // flush pending getId timers before they write to the global object
+      delete window[globalName];
+    });
+
+    it('eidt set on LS read', function () {
+      const now = Date.now();
+      localStorage.setItem(FIRST_PARTY_KEY, JSON.stringify({ pcid: 'test_pcid', pcidDate: now, sCal: now }));
+      localStorage.setItem('_iiq_fdata_' + partner, JSON.stringify(testLSValueWithData));
+      intentIqIdSubmodule.getId(defaultConfigParams);
+
+      expect(window[globalName].eidt).to.equal(now);
+    });
+
+    it('eidt set on VR response when no LS eids', async function () {
+      const submoduleCallback = intentIqIdSubmodule.getId(defaultConfigParams).callback;
+      submoduleCallback(sinon.spy());
+      await waitForClientHints();
+      expect(window[globalName]).to.not.have.property('eidt');
+
+      clock.tick(50);
+      server.requests[0].respond(200, responseHeader, JSON.stringify(vrResponseWithEids));
+
+      expect(window[globalName].eidt).to.equal(Date.now());
+    });
+
+    it('eidt not set on VR response without eids', async function () {
+      const submoduleCallback = intentIqIdSubmodule.getId(defaultConfigParams).callback;
+      submoduleCallback(sinon.spy());
+      await waitForClientHints();
+      server.requests[0].respond(200, responseHeader, JSON.stringify({ ...testResponseWithValues, data: { eids: [] } }));
+
+      expect(window[globalName]).to.not.have.property('eidt');
+    });
+
+    it('eidt not redefined on refreshUserIds reading eids from LS', async function () {
+      const submoduleCallback = intentIqIdSubmodule.getId(defaultConfigParams).callback;
+      submoduleCallback(sinon.spy());
+      await waitForClientHints();
+      server.requests[0].respond(200, responseHeader, JSON.stringify({ ...vrResponseWithEids, cttl: 9999999 }));
+      const firstEidt = window[globalName].eidt;
+      expect(firstEidt).to.be.a('number');
+
+      clock.tick(1000);
+      const secondResult = intentIqIdSubmodule.getId(defaultConfigParams);
+      expect(secondResult.callback).to.be.undefined;
+      expect(secondResult.id).to.deep.equal(vrResponseWithEids.data.eids);
+      expect(window[globalName].eidt).to.equal(firstEidt);
+    });
+
+    it('eidt not redefined on second VR response', async function () {
+      const firstCallback = intentIqIdSubmodule.getId(defaultConfigParams).callback;
+      firstCallback(sinon.spy());
+      await waitForClientHints();
+      server.requests[0].respond(200, responseHeader, JSON.stringify({ ...vrResponseWithEids, cttl: 1 }));
+      const firstEidt = window[globalName].eidt;
+      expect(firstEidt).to.be.a('number');
+
+      clock.tick(1000);
+      const secondCallback = intentIqIdSubmodule.getId(defaultConfigParams).callback;
+      secondCallback(sinon.spy());
+      await waitForClientHints();
+      expect(server.requests.length).to.equal(2);
+      server.requests[1].respond(200, responseHeader, JSON.stringify(vrResponseWithEids));
+
+      expect(window[globalName].eidt).to.equal(firstEidt);
+    });
+  });
+
+  describe('eidl (eids length) in global object', function () {
+    const globalName = `iiq_identity_${partner}`;
+
+    beforeEach(function () {
+      // every test starts as a new page: no global object yet
+      delete window[globalName];
+    });
+
+    afterEach(async function () {
+      await waitForClientHints(); // flush pending getId timers before they write to the global object
+      delete window[globalName];
+    });
+
+    it('eidl stored on window global, not in LS', async function () {
+      const submoduleCallback = intentIqIdSubmodule.getId(defaultConfigParams).callback;
+      submoduleCallback(sinon.spy());
+      await waitForClientHints();
+      server.requests[0].respond(200, responseHeader, JSON.stringify({ ...testResponseWithValues, data: { eids: ['a', 'b'] } }));
+
+      const partnerDataFromLS = JSON.parse(localStorage.getItem('_iiq_fdata_' + partner));
+      expect(window[globalName].eidl).to.equal(2);
+      expect(partnerDataFromLS).to.not.have.property('eidl');
+    });
+
+    const lsEids = [{ source: 'a.com', uids: [{ id: '1' }] }, { source: 'b.com', uids: [{ id: '2' }] }, { source: 'c.com', uids: [{ id: '3' }] }];
+    const setLsOnlyPage = (extraPartnerData = {}) => {
+      const now = Date.now();
+      localStorage.setItem(FIRST_PARTY_KEY, JSON.stringify({ pcid: 'test_pcid', pcidDate: now, sCal: now }));
+      localStorage.setItem('_iiq_fdata_' + partner, JSON.stringify({
+        ...testLSValueWithData,
+        data: encryptData(JSON.stringify({ eids: lsEids })),
+        ...extraPartnerData
+      }));
+    };
+
+    it('eidl set on LS-only page', function () {
+      setLsOnlyPage();
+      const returnedValue = intentIqIdSubmodule.getId(defaultConfigParams);
+
+      expect(returnedValue.callback).to.be.undefined;
+      expect(server.requests.length).to.equal(0);
+      expect(window[globalName].eidl).to.equal(lsEids.length);
+    });
+
+    it('stale eidl in LS is ignored, eidl is computed from the current eids', function () {
+      setLsOnlyPage({ eidl: 7 });
+      const returnedValue = intentIqIdSubmodule.getId(defaultConfigParams);
+
+      expect(returnedValue.callback).to.be.undefined;
+      expect(window[globalName].eidl).to.equal(lsEids.length);
+    });
+
+    it('stale eidl is dropped from LS when VR data is stored, other fields are kept', async function () {
+      localStorage.setItem('_iiq_fdata_' + partner, JSON.stringify({ ...testLSValue, eidl: 7, agentField: 'keep' }));
+      const submoduleCallback = intentIqIdSubmodule.getId(defaultConfigParams).callback;
+      submoduleCallback(sinon.spy());
+      await waitForClientHints();
+      server.requests[0].respond(200, responseHeader, JSON.stringify({ ...testResponseWithValues, data: { eids: [] } }));
+
+      const partnerDataFromLS = JSON.parse(localStorage.getItem('_iiq_fdata_' + partner));
+      expect(partnerDataFromLS).to.not.have.property('eidl');
+      expect(partnerDataFromLS.agentField).to.equal('keep');
+      expect(window[globalName].eidl).to.equal(-1);
+    });
+
+    it('stale eidl is removed from LS on LS-only page', function () {
+      setLsOnlyPage({ eidl: 7, agentField: 'keep' });
+      const returnedValue = intentIqIdSubmodule.getId(defaultConfigParams);
+
+      expect(returnedValue.callback).to.be.undefined;
+      const partnerDataFromLS = JSON.parse(localStorage.getItem('_iiq_fdata_' + partner));
+      expect(partnerDataFromLS).to.not.have.property('eidl');
+      expect(partnerDataFromLS.agentField).to.equal('keep');
+    });
+
+    // LS has eids, but there is no sCal in FPD, so VR is called on this page
+    const setVrPageWithLsEids = () => {
+      const now = Date.now();
+      localStorage.setItem(FIRST_PARTY_KEY, JSON.stringify({ pcid: 'test_pcid', pcidDate: now }));
+      localStorage.setItem('_iiq_fdata_' + partner, JSON.stringify({
+        ...testLSValueWithData,
+        data: encryptData(JSON.stringify({ eids: lsEids }))
+      }));
+    };
+
+    it('eidl is set on global from LS eids when VR is called (before response)', async function () {
+      setVrPageWithLsEids();
+      const submoduleCallback = intentIqIdSubmodule.getId(defaultConfigParams).callback;
+      submoduleCallback(sinon.spy());
+      await waitForClientHints();
+
+      expect(server.requests.length).to.equal(1);
+      expect(window[globalName].eidl).to.equal(lsEids.length);
+    });
+
+    it('eidl/eidt on VR isOptedOut response', async function () {
+      setVrPageWithLsEids();
+      const submoduleCallback = intentIqIdSubmodule.getId(defaultConfigParams).callback;
+      submoduleCallback(sinon.spy());
+      await waitForClientHints();
+      const eidtFromLsRead = window[globalName].eidt;
+      expect(eidtFromLsRead).to.be.a('number');
+
+      clock.tick(100);
+      server.requests[0].respond(200, responseHeader, JSON.stringify({ isOptedOut: true, tc: 41 }));
+
+      // same as the Agent: opt-out drops the eids, but "had eids in LS" and the eids read time stay
+      expect(window[globalName].eidl).to.equal(lsEids.length);
+      expect(window[globalName].eidt).to.equal(eidtFromLsRead);
     });
   });
 

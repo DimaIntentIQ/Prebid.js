@@ -11,6 +11,7 @@ import { EVENTS } from "src/constants.js";
 import * as events from "src/events.js";
 import { getGlobal } from "../../../src/prebidGlobal.js";
 import adapterManager from "../../../src/adapterManager.js";
+import { auctionManager } from "../../../src/auctionManager.js";
 import sinon from "sinon";
 import {
   FIRST_PARTY_KEY,
@@ -21,6 +22,8 @@ import {
   GVLID,
 } from "../../../libraries/intentIqConstants/intentIqConstants.js";
 import * as detectBrowserUtils from "../../../libraries/intentIqUtils/detectBrowserUtils.js";
+import { encryptData } from "../../../libraries/intentIqUtils/cryptionUtils.js";
+import { intentIqIdSubmodule } from "modules/intentIqIdSystem.js";
 import {
   getCurrentUrl,
   appendVrrefAndFui,
@@ -161,6 +164,11 @@ const enableAnalyticWithSpecialOptions = (receivedOptions) => {
       ...receivedOptions
     },
   });
+};
+
+const getDecodedPayload = (index = 0) => {
+  const url = new URL(server.requests[index].url);
+  return JSON.parse(atob(JSON.parse(url.searchParams.get('payload'))[0]));
 };
 
 describe("IntentIQ tests all", function () {
@@ -1131,6 +1139,299 @@ describe("IntentIQ tests all", function () {
 
     expect(decoded.abPercentage).to.equal(95);
     expect(decoded).to.not.have.property('userPercentage');
+  });
+
+  describe('rtt (request round-trip time)', function () {
+    it('should report rtt 0 when VR was not called in this session even if partnerData from LS has rrtt', function () {
+      window[identityName].partnerData.rrtt = 123;
+      events.emit(EVENTS.BID_WON, getWonRequest());
+
+      expect(getDecodedPayload().rtt).to.equal(0);
+    });
+
+    it('should report rtt from the identity global object when VR was called in this session', function () {
+      window[identityName].partnerData.rrtt = 123;
+      window[identityName].rrtt = 250;
+      events.emit(EVENTS.BID_WON, getWonRequest());
+
+      expect(getDecodedPayload().rtt).to.equal(250);
+    });
+
+    it('rtt -1 reported on timeout', function () {
+      window[identityName].rrtt = -1;
+      events.emit(EVENTS.BID_WON, getWonRequest());
+
+      expect(getDecodedPayload().rtt).to.equal(-1);
+    });
+
+    it('should report rtt 0 when the identity global object is missing', function () {
+      delete window[identityName];
+      events.emit(EVENTS.BID_WON, getWonRequest());
+
+      expect(getDecodedPayload().rtt).to.equal(0);
+    });
+  });
+
+  describe('ast (auction start time)', function () {
+    it('ast equals AUCTION_INIT timestamp of the won auction', function () {
+      const wonRequest = getWonRequest();
+      events.emit(EVENTS.AUCTION_INIT, { auctionId: wonRequest.auctionId, timestamp: 1700000000123 });
+      events.emit(EVENTS.BID_WON, wonRequest);
+
+      expect(getDecodedPayload().ast).to.equal(1700000000123);
+    });
+
+    it('ast is 0 for untracked auction', function () {
+      events.emit(EVENTS.BID_WON, getWonRequest());
+
+      expect(getDecodedPayload().ast).to.equal(0);
+    });
+
+    it('each of two auctions reports its own ast', function () {
+      const firstWon = getWonRequest();
+      const secondWon = { ...getWonRequest(), auctionId: firstWon.auctionId + '-second' };
+      events.emit(EVENTS.AUCTION_INIT, { auctionId: firstWon.auctionId, timestamp: 1700000000100 });
+      events.emit(EVENTS.AUCTION_INIT, { auctionId: secondWon.auctionId, timestamp: 1700000000200 });
+      events.emit(EVENTS.BID_WON, secondWon);
+      events.emit(EVENTS.BID_WON, firstWon);
+
+      expect(getDecodedPayload(0).ast).to.equal(1700000000200);
+      expect(getDecodedPayload(1).ast).to.equal(1700000000100);
+    });
+  });
+
+  describe('eidt (eids read time)', function () {
+    it('eidt sent in report from the identity global object', function () {
+      window[identityName].eidt = 1700000000050;
+      events.emit(EVENTS.BID_WON, getWonRequest());
+
+      expect(getDecodedPayload().eidt).to.equal(1700000000050);
+    });
+
+    it('eidt sent as null when eids were not available yet', function () {
+      events.emit(EVENTS.BID_WON, getWonRequest());
+
+      const payload = getDecodedPayload();
+      expect(payload).to.have.property('eidt');
+      expect(payload.eidt).to.equal(null);
+    });
+  });
+
+  describe('hadEids', function () {
+    const AUCTION_START = 1700000000100;
+    const emitTrackedWin = () => {
+      const wonRequest = getWonRequest();
+      events.emit(EVENTS.AUCTION_INIT, { auctionId: wonRequest.auctionId, timestamp: AUCTION_START });
+      events.emit(EVENTS.BID_WON, wonRequest);
+    };
+
+    it('hadEids true when eidt <= ast', function () {
+      window[identityName].eidt = AUCTION_START;
+      emitTrackedWin();
+
+      expect(getDecodedPayload().hadEids).to.equal(true);
+    });
+
+    it('hadEids false when eidt > ast', function () {
+      window[identityName].eidt = AUCTION_START + 1;
+      emitTrackedWin();
+
+      expect(getDecodedPayload().hadEids).to.equal(false);
+    });
+
+    it('hadEids false when eidt is null', function () {
+      emitTrackedWin();
+
+      expect(getDecodedPayload().hadEids).to.equal(false);
+    });
+
+    it('hadEids per auction with eidt between two asts', function () {
+      const firstWon = getWonRequest();
+      const secondWon = { ...getWonRequest(), auctionId: firstWon.auctionId + '-second' };
+      window[identityName].eidt = AUCTION_START + 100;
+      events.emit(EVENTS.AUCTION_INIT, { auctionId: firstWon.auctionId, timestamp: AUCTION_START });
+      events.emit(EVENTS.AUCTION_INIT, { auctionId: secondWon.auctionId, timestamp: AUCTION_START + 200 });
+      events.emit(EVENTS.BID_WON, firstWon);
+      events.emit(EVENTS.BID_WON, secondWon);
+
+      expect(getDecodedPayload(0).hadEids).to.equal(false);
+      expect(getDecodedPayload(1).hadEids).to.equal(true);
+    });
+
+    it('hadEids undefined when auction untracked', function () {
+      window[identityName].eidt = AUCTION_START;
+      events.emit(EVENTS.BID_WON, getWonRequest());
+
+      expect(getDecodedPayload()).to.not.have.property('hadEids');
+    });
+  });
+
+  describe('ast for manual win reported before AUCTION_INIT reached the adapter', function () {
+    const AUCTION_START = 1700000000100;
+    const AUCTION_ID = 'manual-win-auction';
+    let getAuctionStub;
+
+    beforeEach(function () {
+      enableAnalyticWithSpecialOptions({ manualWinReportEnabled: true });
+      // the auction exists in Prebid, but AUCTION_INIT is still in the analytics queue
+      getAuctionStub = sinon.stub(auctionManager.index, 'getAuction');
+      getAuctionStub.withArgs({ auctionId: AUCTION_ID }).returns({ getAuctionStart: () => AUCTION_START });
+    });
+
+    afterEach(function () {
+      getAuctionStub.restore();
+    });
+
+    const reportManualWin = (auctionId) => {
+      window[`intentIqAnalyticsAdapter_${partner}`].reportExternalWin({ cpm: 1, currency: 'USD', prebidAuctionId: auctionId });
+    };
+
+    it('ast falls back to the auction start from auctionManager and hadEids is computed', function () {
+      window[identityName].eidt = AUCTION_START;
+      reportManualWin(AUCTION_ID);
+
+      const payload = getDecodedPayload();
+      expect(payload.ast).to.equal(AUCTION_START);
+      expect(payload.hadEids).to.equal(true);
+    });
+
+    it('hadEids false when eids came after the auction start from auctionManager', function () {
+      window[identityName].eidt = AUCTION_START + 1;
+      reportManualWin(AUCTION_ID);
+
+      const payload = getDecodedPayload();
+      expect(payload.ast).to.equal(AUCTION_START);
+      expect(payload.hadEids).to.equal(false);
+    });
+
+    it('unknown auctionId: ast 0 and no hadEids', function () {
+      window[identityName].eidt = AUCTION_START;
+      reportManualWin('unknown-auction');
+
+      const payload = getDecodedPayload();
+      expect(payload.ast).to.equal(0);
+      expect(payload).to.not.have.property('hadEids');
+    });
+  });
+
+  describe('eidl (eids length)', function () {
+    it('eidl reported from window global', function () {
+      window[identityName].eidl = 3;
+      events.emit(EVENTS.BID_WON, getWonRequest());
+
+      const payload = getDecodedPayload();
+      expect(payload.aeidln).to.equal(3);
+      expect(payload.idls).to.equal(true);
+    });
+
+    describe('LS-only page (getId without VR call -> BID_WON)', function () {
+      const lsEids = [{ source: 'a.com', uids: [{ id: '1' }] }, { source: 'b.com', uids: [{ id: '2' }] }];
+      let clock;
+
+      const runLsOnlyGetId = (extraPartnerData = {}) => {
+        const now = Date.now();
+        localStorage.setItem(FIRST_PARTY_KEY, JSON.stringify({ pcid: 'test_pcid', pcidDate: now, sCal: now }));
+        localStorage.setItem(FIRST_PARTY_KEY + '_' + partner, JSON.stringify({
+          date: now,
+          cttl: 9999999999999,
+          data: encryptData(JSON.stringify({ eids: lsEids })),
+          ...extraPartnerData
+        }));
+        delete window[identityName]; // new page: the ID module creates the global object
+        const result = intentIqIdSubmodule.getId({ params: { partner } });
+        expect(result.callback).to.be.undefined;
+        expect(server.requests.length).to.equal(0);
+      };
+
+      beforeEach(function () {
+        clock = sinon.useFakeTimers({ now: Date.now(), toFake: ['setTimeout', 'clearTimeout'] });
+      });
+
+      afterEach(function () {
+        clock.restore(); // drops getId's pending callback timer
+      });
+
+      it('idls true on LS-only page', function () {
+        runLsOnlyGetId();
+        events.emit(EVENTS.BID_WON, getWonRequest());
+
+        const payload = getDecodedPayload();
+        expect(payload.idls).to.equal(true);
+        expect(payload.aeidln).to.equal(lsEids.length);
+      });
+
+      it('stale eidl in partnerData from LS is ignored, eidl is computed from the current eids', function () {
+        runLsOnlyGetId({ eidl: 5 });
+        events.emit(EVENTS.BID_WON, getWonRequest());
+
+        const payload = getDecodedPayload();
+        expect(payload.aeidln).to.equal(lsEids.length);
+        expect(payload.idls).to.equal(true);
+      });
+    });
+
+    describe('VR page with LS eids (getId with VR call -> BID_WON)', function () {
+      const lsEids = [{ source: 'a.com', uids: [{ id: '1' }] }, { source: 'b.com', uids: [{ id: '2' }] }];
+      let clock;
+      const CH_WAIT_MS = 20; // client hints wait (chTimeout is 10ms)
+      const VR_RESPONSE_DELAY_MS = 70;
+
+      // LS has eids, but there is no sCal in FPD, so VR is called on this page
+      const runGetIdWithVrCall = async () => {
+        const now = Date.now();
+        localStorage.setItem(FIRST_PARTY_KEY, JSON.stringify({ pcid: 'test_pcid', pcidDate: now }));
+        localStorage.setItem(FIRST_PARTY_KEY + '_' + partner, JSON.stringify({
+          date: now,
+          cttl: 9999999999999,
+          data: encryptData(JSON.stringify({ eids: lsEids }))
+        }));
+        delete window[identityName]; // new page: the ID module creates the global object
+        intentIqIdSubmodule.getId({ params: { partner } }).callback(() => {}); // VR start time is taken here
+        await clock.tickAsync(CH_WAIT_MS);
+        expect(server.requests.length).to.equal(1);
+        return server.requests[0];
+      };
+
+      beforeEach(function () {
+        clock = sinon.useFakeTimers({ now: Date.now(), toFake: ['setTimeout', 'clearTimeout', 'Date'] });
+      });
+
+      afterEach(function () {
+        clock.restore(); // drops getId's pending callback timer
+      });
+
+      it('BID_WON before VR response reports wsrvcll=true, rtt=0, idls from LS', async function () {
+        await runGetIdWithVrCall();
+        events.emit(EVENTS.BID_WON, getWonRequest());
+
+        const payload = getDecodedPayload(1);
+        expect(payload.wsrvcll).to.equal(true);
+        expect(payload.rtt).to.equal(0);
+        expect(payload.idls).to.equal(true);
+        expect(payload.aeidln).to.equal(lsEids.length);
+      });
+
+      [
+        { name: 'network error', fail: (vrRequest) => vrRequest.respond(500, {}, ''), rtt: CH_WAIT_MS + VR_RESPONSE_DELAY_MS },
+        // what fetch rejects with when the ajax timeout aborts the request
+        { name: 'timeout', fail: (vrRequest) => vrRequest.error(new DOMException('signal is aborted without reason', 'AbortError')), rtt: -1 }
+      ].forEach(({ name, fail, rtt }) => {
+        it(`eidl is kept from LS eids after VR ${name}`, async function () {
+          const vrRequest = await runGetIdWithVrCall();
+          clock.tick(VR_RESPONSE_DELAY_MS);
+          fail(vrRequest);
+          await clock.tickAsync(0);
+          events.emit(EVENTS.BID_WON, getWonRequest());
+
+          const payload = getDecodedPayload(1);
+          expect(window[identityName].eidl).to.equal(lsEids.length);
+          expect(payload.idls).to.equal(true);
+          expect(payload.aeidln).to.equal(lsEids.length);
+          expect(payload.wsrvcll).to.equal(true);
+          expect(payload.rtt).to.equal(rtt);
+        });
+      });
+    });
   });
 
   describe('BID_REQUESTED CMP mismatch detection', function () {

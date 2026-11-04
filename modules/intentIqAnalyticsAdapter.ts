@@ -19,6 +19,7 @@ import { handleAdditionalParams } from '../libraries/intentIqUtils/handleAdditio
 import { gamPredictionReport } from '../libraries/intentIqUtils/gamPredictionReport.ts';
 import { defineABTestingGroup, IntentIqABConfigSource } from '../libraries/intentIqUtils/defineABTestingGroupUtils.ts';
 import { getGlobal } from '../src/prebidGlobal.js';
+import { auctionManager } from '../src/auctionManager.js';
 
 /**
  * Payload passed to `window.intentIqAnalyticsAdapter_<partnerId>.reportExternalWin()`.
@@ -204,6 +205,7 @@ let identityGlobalName: string | undefined;
 let alreadySubscribedOnGAM = false;
 let reportList: Record<string, Record<string, number>> = {};
 let cleanReportsID: ReturnType<typeof setTimeout> | undefined;
+let auctionStartTimes: Record<string, number> = {};
 let iiqConfig: any;
 
 const PARAMS_NAMES: Record<string, string> = {
@@ -279,6 +281,9 @@ const iiqAnalyticsAnalyticsAdapter: any = Object.assign(adapter({ url: DEFAULT_U
   initOptions: getDefaultInitOptions(),
   track({ eventType, args }: { eventType: string; args: any }) {
     switch (eventType) {
+      case AUCTION_INIT:
+        auctionStartTimes[args.auctionId] = args.timestamp;
+        break;
       case BID_WON:
         bidWon(args);
         break;
@@ -306,7 +311,7 @@ const iiqAnalyticsAnalyticsAdapter: any = Object.assign(adapter({ url: DEFAULT_U
 });
 
 // Events needed
-const { BID_WON, BID_REQUESTED } = EVENTS;
+const { AUCTION_INIT, BID_WON, BID_REQUESTED } = EVENTS;
 
 function initAdapterConfig(config: any): void {
   if (iiqAnalyticsAnalyticsAdapter.initOptions.adapterConfigInitialized) return;
@@ -353,11 +358,12 @@ function receivePartnerData(): boolean | void {
       iiqAnalyticsAnalyticsAdapter.initOptions.terminationCause = partnerData.terminationCause;
       iiqAnalyticsAnalyticsAdapter.initOptions.abTestUuid = partnerData.abTestUuid;
       iiqAnalyticsAnalyticsAdapter.initOptions.dataInLs = partnerData.data;
-      iiqAnalyticsAnalyticsAdapter.initOptions.eidl = partnerData.eidl || -1;
+      iiqAnalyticsAnalyticsAdapter.initOptions.eidl = (window as any)[identityGlobalName as string].eidl || -1;
       iiqAnalyticsAnalyticsAdapter.initOptions.clientType = partnerData.clientType || null;
       iiqAnalyticsAnalyticsAdapter.initOptions.siteId = partnerData.siteId || null;
       iiqAnalyticsAnalyticsAdapter.initOptions.wsrvcll = partnerData.wsrvcll || false;
-      iiqAnalyticsAnalyticsAdapter.initOptions.rrtt = partnerData.rrtt || null;
+      iiqAnalyticsAnalyticsAdapter.initOptions.rrtt = (window as any)[identityGlobalName as string].rrtt;
+      iiqAnalyticsAnalyticsAdapter.initOptions.eidt = (window as any)[identityGlobalName as string].eidt;
     }
 
     if (actualABGroup) {
@@ -473,7 +479,8 @@ export function preparePayload(data: any): Record<string, any> | void {
   result[PARAMS_NAMES.clientType] = iiqAnalyticsAnalyticsAdapter.initOptions.clientType;
   result[PARAMS_NAMES.siteId] = iiqAnalyticsAnalyticsAdapter.initOptions.siteId;
   result[PARAMS_NAMES.wasServerCalled] = iiqAnalyticsAnalyticsAdapter.initOptions.wsrvcll;
-  result[PARAMS_NAMES.requestRtt] = iiqAnalyticsAnalyticsAdapter.initOptions.rrtt;
+  result[PARAMS_NAMES.requestRtt] = iiqAnalyticsAnalyticsAdapter.initOptions.rrtt || 0;
+  result[PARAMS_NAMES.eidsReadTime] = iiqAnalyticsAnalyticsAdapter.initOptions.eidt ?? null;
   result[PARAMS_NAMES.isInTestGroup] = iiqAnalyticsAnalyticsAdapter.initOptions.currentGroup === WITH_IIQ;
 
   if (iiqAnalyticsAnalyticsAdapter.initOptions.currentGroup) {
@@ -499,6 +506,14 @@ export function preparePayload(data: any): Record<string, any> | void {
     result[PARAMS_NAMES.userPercentage] = iiqAnalyticsAnalyticsAdapter.initOptions.userPercentage;
   }
   prepareData(data, result);
+  // AUCTION_INIT comes through the analytics queue, so a manual win can arrive before it - fall back to the auction itself
+  const auctionStart = auctionStartTimes[result.prebidAuctionId] ??
+    auctionManager.index.getAuction({ auctionId: result.prebidAuctionId })?.getAuctionStart();
+  result[PARAMS_NAMES.auctionStartTime] = auctionStart || 0;
+  if (typeof auctionStart !== 'undefined') {
+    const eidt = result[PARAMS_NAMES.eidsReadTime];
+    result[PARAMS_NAMES.hadEids] = !(eidt === null || result[PARAMS_NAMES.auctionStartTime] < eidt);
+  }
 
   if (shouldSubscribeOnGAM()) {
     if (!reportList[result.placementId] || !reportList[result.placementId][result.prebidAuctionId]) {
@@ -608,7 +623,6 @@ function getDefaultDataObject(): Record<string, any> {
     partnerId: -1,
     biddingPlatformId: 1,
     idls: false,
-    ast: -1,
     aeidln: -1
   };
 }
@@ -687,6 +701,7 @@ iiqAnalyticsAnalyticsAdapter.disableAnalytics = function(): void {
   identityGlobalName = undefined;
   alreadySubscribedOnGAM = false;
   reportList = {};
+  auctionStartTimes = {};
   cleanReportsID = undefined;
   iiqConfig = undefined;
   iiqAnalyticsAnalyticsAdapter.initOptions = getDefaultInitOptions();
