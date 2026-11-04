@@ -394,6 +394,12 @@ export function isCMPStringTheSame(fpData: any, cmpData: any): boolean {
   );
 }
 
+// eidt is the first time eids became available on the page - later calls are ignored
+function setEidsReadTimeOnce(): void {
+  const globalObj = (window as any)[globalName];
+  if (globalObj && typeof globalObj.eidt !== 'number') globalObj.eidt = Date.now();
+}
+
 function updateCountersAndStore(runtimeEids: any, allowedStorage: any, partnerData: any): void {
   if (!runtimeEids?.eids?.length) {
     noDataCount++;
@@ -472,6 +478,7 @@ export const intentIqIdSubmodule = {
 
     const allowedStorage: AllowedStorageType[] = defineStorageType((config as any).enabledStorageTypes);
     partnerData = tryParse(readData(PARTNER_DATA_KEY, allowedStorage) as string) || {};
+    delete partnerData.eidl; // eidl is runtime-only (global object); drop the stale value written by older versions
 
     let rrttStrtTime = 0;
     let shouldCallServer = false;
@@ -608,7 +615,9 @@ export const intentIqIdSubmodule = {
       firePartnerCallback();
     }
 
+    (window as any)[globalName].eidl = runtimeEids?.eids?.length || -1;
     if (runtimeEids?.eids?.length) {
+      setEidsReadTimeOnce();
       firePartnerCallback();
     }
 
@@ -669,7 +678,7 @@ export const intentIqIdSubmodule = {
     url = appendVrrefAndFui(url, configParams.domainName);
 
     const storeFirstPartyData = (): void => {
-      partnerData.eidl = runtimeEids?.eids?.length || -1;
+      (window as any)[globalName].eidl = runtimeEids?.eids?.length || -1;
       storeData(FIRST_PARTY_KEY_FINAL, JSON.stringify(firstPartyData), allowedStorage, firstPartyData);
       storeData(PARTNER_DATA_KEY, JSON.stringify(partnerData), allowedStorage, firstPartyData);
     };
@@ -678,7 +687,7 @@ export const intentIqIdSubmodule = {
       const callbacks = {
         success: (response: any) => {
           if (rrttStrtTime && rrttStrtTime > 0) {
-            partnerData.rrtt = Date.now() - rrttStrtTime;
+            (window as any)[globalName].rrtt = partnerData.rrtt = Date.now() - rrttStrtTime;
           }
           const respJson = tryParse(response) as any;
           // If response is a valid json and should save is true
@@ -772,6 +781,7 @@ export const intentIqIdSubmodule = {
 
             if (respJson.data?.eids) {
               runtimeEids = respJson.data;
+              if (runtimeEids.eids.length) setEidsReadTimeOnce();
               callback(respJson.data.eids);
               firePartnerCallback();
               const encryptedData = encryptData(JSON.stringify(respJson.data));
@@ -787,7 +797,12 @@ export const intentIqIdSubmodule = {
             firePartnerCallback();
           }
         },
-        error: (error: any) => {
+        error: (error: any, xhr?: any) => {
+          if (xhr?.timedOut) {
+            (window as any)[globalName].rrtt = -1;
+          } else if (rrttStrtTime && rrttStrtTime > 0) {
+            (window as any)[globalName].rrtt = Date.now() - rrttStrtTime;
+          }
           logError(MODULE_NAME + ': ID fetch encountered an error', error);
           failCount++;
           updateCountersAndStore(runtimeEids, allowedStorage, partnerData);
