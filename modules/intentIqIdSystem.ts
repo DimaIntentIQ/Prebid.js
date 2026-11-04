@@ -143,8 +143,10 @@ export type IntentIqIdSystemParams = {
   partnerClientId?: string;
 
   /**
-   * Type code for `partnerClientId`. Must be a positive integer recognised
-   * by the IntentIQ server.
+   * Type code for `partnerClientId`:
+   * `0` – 3rd-party cookie, `1` – IDFV, `2` – First-party ID, `4` – MAID / AAID.
+   * `3` is deprecated and is sent as `2`. Any other value is ignored, and
+   * neither `partnerClientId` nor its type is sent.
    */
   partnerClientIdType?: number;
 
@@ -229,20 +231,41 @@ function appendFirstPartyData(url: string, firstPartyData: any, partnerData: any
 }
 
 function verifyIdType(value: number): number {
-  if (value === 0 || value === 1 || value === 3 || value === 4) return value;
+  if (value === 0 || value === 1 || value === 2 || value === 3 || value === 4) return value;
   return -1;
 }
 
-function appendPartnersFirstParty(url: string, configParams: any): string {
-  const partnerClientId = typeof configParams.partnerClientId === 'string' ? encodeURIComponent(configParams.partnerClientId) : '';
-  const partnerClientIdType = typeof configParams.partnerClientIdType === 'number' ? verifyIdType(configParams.partnerClientIdType) : -1;
+/**
+ * Type 3 is a deterministic IDFV (one that came with a MAID) on the server side.
+ * A browser can't hold a MAID, so a type 3 sent from Prebid is a first-party ID (type 2).
+ */
+function normalizeIdType(value: number): number {
+  return value === 3 ? 2 : value;
+}
 
-  if (partnerClientIdType === -1) return url;
-  if (partnerClientId !== '') {
-    url = url + '&pcid=' + partnerClientId;
-    url = url + '&idtype=' + partnerClientIdType;
-  }
-  return url;
+/**
+ * Returns the partner's encoded client ID and its normalized type, or null if either one is missing or invalid.
+ */
+function getPartnersFirstParty(configParams: any): { pcid: string; idtype: number } | null {
+  const partnerClientId = typeof configParams.partnerClientId === 'string' ? encodeURIComponent(configParams.partnerClientId) : '';
+  const partnerClientIdType = typeof configParams.partnerClientIdType === 'number' ? normalizeIdType(verifyIdType(configParams.partnerClientIdType)) : -1;
+
+  if (partnerClientIdType === -1 || partnerClientId === '') return null;
+  return { pcid: partnerClientId, idtype: partnerClientIdType };
+}
+
+function appendPartnersFirstParty(url: string, partnersFirstParty: { pcid: string; idtype: number } | null): string {
+  if (!partnersFirstParty) return url;
+  return url + '&pcid=' + partnersFirstParty.pcid + '&idtype=' + partnersFirstParty.idtype;
+}
+
+/**
+ * `ct` is the client type the server derived from the user agent, not a PartnerCookieType,
+ * so it is sent as idtype only when the partner's own idtype was not sent.
+ */
+function appendClientType(url: string, partnerData: any, hasPartnerIdType: boolean): string {
+  if (hasPartnerIdType || !partnerData?.clientType) return url;
+  return url + '&idtype=' + partnerData.clientType;
 }
 
 function appendCMPData(url: string, cmpData: any): string {
@@ -306,9 +329,10 @@ export function createPixelUrl(firstPartyData: any, clientHints: string, configP
   url += '/profiles_engine/ProfilesEngineServlet?at=20&mi=10&secure=1';
   url += '&dpi=' + configParams.partner;
   url = appendFirstPartyData(url, firstPartyData, partnerData);
-  url = appendPartnersFirstParty(url, configParams);
+  const partnersFirstParty = getPartnersFirstParty(configParams);
+  url = appendPartnersFirstParty(url, partnersFirstParty);
   url = addUniquenessToUrl(url);
-  url += partnerData?.clientType ? '&idtype=' + partnerData.clientType : '';
+  url = appendClientType(url, partnerData, partnersFirstParty !== null);
   url += VERSION ? '&jsver=' + VERSION : '';
   if (clientHints) url += '&uh=' + encodeURIComponent(clientHints);
   url = appendVrrefAndFui(url, configParams.domainName);
@@ -647,7 +671,7 @@ export const intentIqIdSubmodule = {
     let url = `${getIiqServerAddress(configParams as any)}/profiles_engine/ProfilesEngineServlet?at=39&mi=10&dpi=${configParams.partner}&pt=17&dpn=1`;
     url += configParams.pai ? '&pai=' + encodeURIComponent(configParams.pai) : '';
     url = appendFirstPartyData(url, firstPartyData, partnerData);
-    url = appendPartnersFirstParty(url, configParams);
+    url = appendPartnersFirstParty(url, getPartnersFirstParty(configParams));
     url += (partnerData.cttl) ? '&cttl=' + encodeURIComponent(partnerData.cttl) : '';
     url += (partnerData.rrtt) ? '&rrtt=' + encodeURIComponent(partnerData.rrtt) : '';
     url = appendCMPData(url, cmpData);

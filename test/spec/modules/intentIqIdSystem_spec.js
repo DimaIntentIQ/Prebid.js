@@ -14,7 +14,7 @@ import { storage, readData, storeData } from '../../../libraries/intentIqUtils/s
 import { gppDataHandler, uspDataHandler, gdprDataHandler } from '../../../src/consentHandler.js';
 import { clearAllCookies } from '../../helpers/cookies.js';
 import { detectBrowser, detectBrowserFromUserAgent, detectBrowserFromUserAgentData } from '../../../libraries/intentIqUtils/detectBrowserUtils.js';
-import { CLIENT_HINTS_KEY, FIRST_PARTY_KEY, PREBID, WITH_IIQ, WITHOUT_IIQ } from '../../../libraries/intentIqConstants/intentIqConstants.js';
+import { CLIENT_HINTS_KEY, FIRST_PARTY_KEY, PREBID, VERSION, WITH_IIQ, WITHOUT_IIQ } from '../../../libraries/intentIqConstants/intentIqConstants.js';
 import { decryptData } from '../../../libraries/intentIqUtils/cryptionUtils.js';
 
 const partner = 10;
@@ -1808,6 +1808,120 @@ describe('IntentIQ tests', function () {
     expect(request.url).to.include('?at=39');
     expect(request.url).not.to.include(`&pcid=${partnerClientId}`);
     expect(request.url).not.to.include(`&idtype=${partnerClientIdType}`);
+  });
+
+  [0, 1, 2, 4].forEach((partnerClientIdType) => {
+    it(`should send partnerClientIdType ${partnerClientIdType} unchanged in AT=39`, async function () {
+      const partnerClientId = 'partnerClientId-123';
+      const callBackSpy = sinon.spy();
+      const configParams = { params: { ...allConfigParams.params, partnerClientId, partnerClientIdType } };
+      const submoduleCallback = intentIqIdSubmodule.getId(configParams).callback;
+      submoduleCallback(callBackSpy);
+      await waitForClientHints();
+
+      const request = server.requests[0];
+
+      expect(request.url).to.include('?at=39');
+      expect(request.url).to.include(`&pcid=${partnerClientId}`);
+      expect(request.url).to.include(`&idtype=${partnerClientIdType}`);
+    });
+  });
+
+  it('should send partnerClientIdType 3 as idtype=2 in AT=39', async function () {
+    const partnerClientId = 'partnerClientId-123';
+    const callBackSpy = sinon.spy();
+    const configParams = { params: { ...allConfigParams.params, partnerClientId, partnerClientIdType: 3 } };
+    const submoduleCallback = intentIqIdSubmodule.getId(configParams).callback;
+    submoduleCallback(callBackSpy);
+    await waitForClientHints();
+
+    const request = server.requests[0];
+
+    expect(request.url).to.include('?at=39');
+    expect(request.url).to.include(`&pcid=${partnerClientId}`);
+    expect(request.url).to.include('&idtype=2');
+    expect(request.url).not.to.include('&idtype=3');
+  });
+
+  it('should send partnerClientIdType 2 in AT=20', async function () {
+    const partnerClientId = 'partnerClientId-123';
+    const configParams = { params: { ...allConfigParams.params, browserBlackList: 'chrome', partnerClientId, partnerClientIdType: 2 } };
+
+    intentIqIdSubmodule.getId(configParams);
+    await waitForClientHints();
+    const request = server.requests[0];
+
+    expect(request.url).to.include('?at=20');
+    expect(request.url).to.include(`&pcid=${partnerClientId}`);
+    expect(request.url).to.include('&idtype=2');
+  });
+
+  it('should send partnerClientIdType 3 as idtype=2 in AT=20', async function () {
+    const partnerClientId = 'partnerClientId-123';
+    const configParams = { params: { ...allConfigParams.params, browserBlackList: 'chrome', partnerClientId, partnerClientIdType: 3 } };
+
+    intentIqIdSubmodule.getId(configParams);
+    await waitForClientHints();
+    const request = server.requests[0];
+
+    expect(request.url).to.include('?at=20');
+    expect(request.url).to.include(`&pcid=${partnerClientId}`);
+    expect(request.url).to.include('&idtype=2');
+    expect(request.url).not.to.include('&idtype=3');
+  });
+
+  [5, -1, 2.5].forEach((partnerClientIdType) => {
+    it(`should NOT send partnerClientId and partnerClientIdType in AT=39 if partnerClientIdType is ${partnerClientIdType}`, async function () {
+      const partnerClientId = 'partnerClientId-123';
+      const callBackSpy = sinon.spy();
+      const configParams = { params: { ...allConfigParams.params, partnerClientId, partnerClientIdType } };
+      const submoduleCallback = intentIqIdSubmodule.getId(configParams).callback;
+      submoduleCallback(callBackSpy);
+      await waitForClientHints();
+
+      const request = server.requests[0];
+
+      expect(request.url).to.include('?at=39');
+      expect(request.url).not.to.include('&pcid=');
+      expect(request.url).not.to.include('&idtype=');
+    });
+  });
+
+  it('should send exactly one idtype in AT=20, from config, when server clientType is also stored', function () {
+    const configParams = { partner: 'testPartner', partnerClientId: 'partnerClientId-123', partnerClientIdType: 3 };
+    const partnerData = { clientType: 4 };
+    const url = createPixelUrl({}, undefined, configParams, partnerData, {});
+
+    expect(url.match(/[?&]idtype=/g)).to.have.lengthOf(1);
+    expect(url).to.include('&idtype=2');
+  });
+
+  it('should send server clientType as idtype in AT=20 when no valid partnerClientIdType is configured', function () {
+    const configParams = { partner: 'testPartner' };
+    const partnerData = { clientType: 4 };
+    const url = createPixelUrl({}, undefined, configParams, partnerData, {});
+
+    expect(url.match(/[?&]idtype=/g)).to.have.lengthOf(1);
+    expect(url).to.include('&idtype=4');
+  });
+
+  it('should send server clientType as idtype in AT=20 when partnerClientIdType is valid but partnerClientId is NOT a string', function () {
+    const configParams = { partner: 'testPartner', partnerClientId: 123, partnerClientIdType: 2 };
+    const partnerData = { clientType: 4 };
+    const url = createPixelUrl({}, undefined, configParams, partnerData, {});
+
+    expect(url).not.to.include('&pcid=');
+    expect(url.match(/[?&]idtype=/g)).to.have.lengthOf(1);
+    expect(url).to.include('&idtype=4');
+  });
+
+  // PE rewrites idtype=3 to 2 for module versions below 0.4; from 0.4 on the module itself never sends 3.
+  it('should send jsver from VERSION (>= 0.4) in AT=20', function () {
+    const configParams = { partner: 'testPartner', partnerClientId: 'partnerClientId-123', partnerClientIdType: 3 };
+    const url = createPixelUrl({}, undefined, configParams, {}, {});
+
+    expect(VERSION).to.be.at.least(0.4);
+    expect(url).to.include(`&jsver=${VERSION}&`);
   });
 
   it('should NOT send sourceMetaData in AT=20 if sourceMetaDataExternal provided', async function () {
