@@ -5,7 +5,7 @@
  * @requires module:modules/userId
  */
 
-import { isNumber, isPlainObject, isStr, logError } from '../src/utils.js';
+import { isNumber, isPlainObject, isStr, logError, politeTriggerPixel } from '../src/utils.js';
 import { ajax } from '../src/ajax.js';
 import { submodule } from '../src/hook.js';
 import { detectBrowser } from '../libraries/intentIqUtils/detectBrowserUtils.ts';
@@ -34,6 +34,10 @@ import { handleAdditionalParams } from '../libraries/intentIqUtils/handleAdditio
 import { decryptData, encryptData } from '../libraries/intentIqUtils/cryptionUtils.ts';
 import { defineABTestingGroup, IntentIqABConfigSource } from '../libraries/intentIqUtils/defineABTestingGroupUtils.ts';
 import { setKeyValueOn } from '../libraries/gptUtils/gptUtils.js';
+import { isActivityAllowed } from '../src/activities/rules.js';
+import { activityParams } from '../src/activities/activityParams.js';
+import { ACTIVITY_ACCESS_REQUEST_CREDENTIALS } from '../src/activities/activities.js';
+import { MODULE_TYPE_UID } from '../src/activities/modules.js';
 // the augmentation below only applies where the spec is part of the program; naming a type from it
 // in this module's public interface puts it there for anyone who imports this module
 import type { UserIdConfig } from './userId/spec.ts';
@@ -325,6 +329,11 @@ export function createPixelUrl(firstPartyData: any, clientHints: string, configP
   return url;
 }
 
+function sendSyncPixel(url: string): void {
+  const credentialsAllowed = isActivityAllowed(ACTIVITY_ACCESS_REQUEST_CREDENTIALS, activityParams(MODULE_TYPE_UID, MODULE_NAME));
+  politeTriggerPixel(url, credentialsAllowed ? 'include' : 'omit');
+}
+
 function sendSyncRequest(allowedStorage: any, url: string, partner: number, firstPartyData: any, newUser: boolean): void {
   const rawLastSyncDate = readData(SYNC_KEY(partner), allowedStorage);
   const parsedLastSyncDate = Number(rawLastSyncDate);
@@ -334,8 +343,7 @@ function sendSyncRequest(allowedStorage: any, url: string, partner: number, firs
   if (firstPartyData.isOptedOut) {
     const needToDoSync = (Date.now() - (firstPartyData?.date || firstPartyData?.sCal || Date.now())) > SYNC_REFRESH_MILL;
     if (newUser || needToDoSync) {
-      ajax(url, () => {
-      }, undefined, { method: 'GET', withCredentials: true });
+      sendSyncPixel(url);
       if (firstPartyData?.date) {
         firstPartyData.date = Date.now();
         storeData(FIRST_PARTY_KEY_FINAL, JSON.stringify(firstPartyData), allowedStorage, firstPartyData);
@@ -343,8 +351,7 @@ function sendSyncRequest(allowedStorage: any, url: string, partner: number, firs
     }
   } else if (lastSyncDate === null || (lastSyncElapsedTime !== null && lastSyncElapsedTime > SYNC_REFRESH_MILL)) {
     storeData(SYNC_KEY(partner), Date.now() + '', allowedStorage);
-    ajax(url, () => {
-    }, undefined, { method: 'GET', withCredentials: true });
+    sendSyncPixel(url);
   }
 }
 
