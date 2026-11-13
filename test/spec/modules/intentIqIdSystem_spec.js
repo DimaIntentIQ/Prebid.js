@@ -142,6 +142,8 @@ describe('IntentIQ tests', function () {
   let sandbox;
   let logErrorStub;
   let clock;
+  let politeTriggerPixelStub;
+  const syncPixels = () => politeTriggerPixelStub.getCalls().map((call) => ({ url: call.args[0], args: call.args }));
   const testLSValue = {
     'date': Date.now(),
     'cttl': 2000,
@@ -170,6 +172,7 @@ describe('IntentIQ tests', function () {
     storage.setCookie(FIRST_PARTY_KEY, '', expiredDate, 'Lax');
     storage.setCookie(FIRST_PARTY_KEY + '_' + partner, '', expiredDate, 'Lax');
     sandbox = sinon.createSandbox();
+    politeTriggerPixelStub = sandbox.stub(utils, 'politeTriggerPixel');
     logErrorStub = sinon.stub(utils, 'logError');
     clock = sinon.useFakeTimers({ now: Date.now() });
     globalThis.__iiqClock = clock;
@@ -330,7 +333,7 @@ describe('IntentIQ tests', function () {
 
     if (currentBrowserLowerCase === usedBrowser) {
       await waitForClientHints();
-      const at20request = server.requests[0];
+      const at20request = syncPixels()[0];
       expect(at20request.url).to.contain(`&source=${PREBID}`);
       expect(at20request.url).to.contain(`at=20`);
     }
@@ -711,7 +714,7 @@ describe('IntentIQ tests', function () {
 
     await waitForClientHints();
 
-    const at20request = server.requests[0];
+    const at20request = syncPixels()[0];
     expect(at20request.url).to.contain(`&spd=${encodedSpd}`);
     expect(at20request.url).to.contain(`at=20`);
   });
@@ -730,7 +733,7 @@ describe('IntentIQ tests', function () {
 
     await waitForClientHints();
 
-    const at20request = server.requests[0];
+    const at20request = syncPixels()[0];
     expect(at20request.url).to.contain(`&spd=${encodedSpd}`);
     expect(at20request.url).to.contain(`at=20`);
   });
@@ -1286,7 +1289,7 @@ describe('IntentIQ tests', function () {
       intentIqIdSubmodule.getId({ ...callbackConfigParams });
       await waitForClientHints();
 
-      const request = server.requests[0];
+      const request = syncPixels()[0];
       expect(request.url).to.contain(syncTestAPILink);
     });
 
@@ -1335,7 +1338,7 @@ describe('IntentIQ tests', function () {
 
         await waitForClientHints();
 
-        const request = server.requests[0];
+        const request = syncPixels()[0];
         expect(request.url).to.contain(expected);
         expect(wasCallbackCalled).to.equal(true);
       });
@@ -1504,11 +1507,11 @@ describe('IntentIQ tests', function () {
 
     intentIqIdSubmodule.getId(cfg);
 
-    const firstReq = server.requests[0];
+    const firstReq = syncPixels()[0];
     expect(firstReq).to.exist;
     expect(firstReq.url).to.include('at=20');
     expect(firstReq.url).to.include('&uh=OLD_CH_VALUE');
-    expect(server.requests.length).to.equal(1);
+    expect(syncPixels().length).to.equal(1);
 
     // Now deliver fresh CH from browser and wait for background handlers
     resolve(testClientHints);
@@ -1517,7 +1520,7 @@ describe('IntentIQ tests', function () {
     // LS updated, network not re-fired
     const expectedFresh = handleClientHints(testClientHints);
     expect(readData(CLIENT_HINTS_KEY, ['html5'])).to.equal(expectedFresh);
-    expect(server.requests.length).to.equal(1);
+    expect(syncPixels().length).to.equal(1);
 
     stub.restore();
   });
@@ -1542,7 +1545,7 @@ describe('IntentIQ tests', function () {
     intentIqIdSubmodule.getId(cfg);
     await waitForClientHints();
 
-    const req = server.requests[0];
+    const req = syncPixels()[0];
     expect(req).to.exist;
     expect(req.url).to.include('at=20');
     expect(req.url).to.include(`&uh=${encodeURIComponent(expectedCH)}`);
@@ -1569,11 +1572,21 @@ describe('IntentIQ tests', function () {
     intentIqIdSubmodule.getId(cfg);
     await waitForClientHints();
 
-    const req = server.requests[0];
+    const req = syncPixels()[0];
     expect(req).to.exist;
     expect(req.url).to.include('at=20');
     expect(req.url).to.include(`&uh=${encodeURIComponent(expectedCH)}`);
     expect(readData(CLIENT_HINTS_KEY, ['html5'])).to.equal(expectedCH);
+  });
+
+  it('blacklist: should send the sync as a polite pixel with its default credentials instead of an XHR', async () => {
+    intentIqIdSubmodule.getId({ params: { ...defaultConfigParams.params, browserBlackList: detectBrowser() } });
+    await waitForClientHints();
+
+    expect(syncPixels().length).to.equal(1);
+    expect(syncPixels()[0].url).to.include('at=20');
+    expect(syncPixels()[0].args).to.have.length(1);
+    expect(server.requests.length).to.equal(0);
   });
 
   it('should return true if CMP strings are the same', function () {
@@ -1792,7 +1805,7 @@ describe('IntentIQ tests', function () {
 
     intentIqIdSubmodule.getId(configParams);
     await waitForClientHints();
-    const request = server.requests[0];
+    const request = syncPixels()[0];
 
     expect(request.url).to.include('?at=20');
     expect(request.url).to.include(`fbp=${translatedMetaDataValue}`);
@@ -1803,7 +1816,7 @@ describe('IntentIQ tests', function () {
 
     intentIqIdSubmodule.getId(configParams);
     await waitForClientHints();
-    const request = server.requests[0];
+    const request = syncPixels()[0];
 
     expect(request.url).to.include('?at=20');
     expect(request.url).to.not.include('&fbp=');
@@ -1816,7 +1829,7 @@ describe('IntentIQ tests', function () {
 
     intentIqIdSubmodule.getId(configParams);
     await waitForClientHints();
-    const request = server.requests[0];
+    const request = syncPixels()[0];
 
     expect(request.url).to.include('?at=20');
     expect(request.url).to.include(`&pcid=${encodeURIComponent(partnerClientId)}`);
@@ -1830,7 +1843,7 @@ describe('IntentIQ tests', function () {
 
     intentIqIdSubmodule.getId(configParams);
     await waitForClientHints();
-    const request = server.requests[0];
+    const request = syncPixels()[0];
 
     expect(request.url).to.include('?at=20');
     expect(request.url).not.to.include(`&pcid=`);
@@ -1844,7 +1857,7 @@ describe('IntentIQ tests', function () {
 
     intentIqIdSubmodule.getId(configParams);
     await waitForClientHints();
-    const request = server.requests[0];
+    const request = syncPixels()[0];
 
     expect(request.url).to.include('?at=20');
     expect(request.url).not.to.include(`&pcid=`);
@@ -1904,7 +1917,7 @@ describe('IntentIQ tests', function () {
 
     intentIqIdSubmodule.getId(configParams);
     await waitForClientHints();
-    const request = server.requests[0];
+    const request = syncPixels()[0];
 
     expect(request.url).to.include('?at=20');
     expect(request.url).to.include('&fbp=123');
@@ -2009,7 +2022,7 @@ describe('IntentIQ tests', function () {
 
     intentIqIdSubmodule.getId(configParams);
     await waitForClientHints();
-    const syncRequest = server.requests[0];
+    const syncRequest = syncPixels()[0];
 
     expect(syncRequest.url).to.include('general=Lee');
   });
@@ -2195,7 +2208,7 @@ describe('IntentIQ tests', function () {
     intentIqIdSubmodule.getId(configParams);
     await waitForClientHints();
 
-    const pixelRequest = server.requests[0];
+    const pixelRequest = syncPixels()[0];
     expect(pixelRequest).to.exist;
     expect(pixelRequest.url).to.include('at=20');
     expect(pixelRequest.url).to.not.include('testGroup=');
