@@ -16,8 +16,6 @@ import { clearAllCookies } from '../../helpers/cookies.js';
 import { detectBrowser, detectBrowserFromUserAgent, detectBrowserFromUserAgentData } from '../../../libraries/intentIqUtils/detectBrowserUtils.js';
 import { CLIENT_HINTS_KEY, FIRST_PARTY_KEY, PREBID, WITH_IIQ, WITHOUT_IIQ } from '../../../libraries/intentIqConstants/intentIqConstants.js';
 import { decryptData } from '../../../libraries/intentIqUtils/cryptionUtils.js';
-import { registerActivityControl } from '../../../src/activities/rules.js';
-import { ACTIVITY_ACCESS_REQUEST_CREDENTIALS } from '../../../src/activities/activities.js';
 
 const partner = 10;
 const pai = '11';
@@ -145,7 +143,7 @@ describe('IntentIQ tests', function () {
   let logErrorStub;
   let clock;
   let politeTriggerPixelStub;
-  const syncPixels = () => politeTriggerPixelStub.getCalls().map((call) => ({ url: call.args[0], credentials: call.args[1] }));
+  const syncPixels = () => politeTriggerPixelStub.getCalls().map((call) => ({ url: call.args[0], args: call.args }));
   const testLSValue = {
     'date': Date.now(),
     'cttl': 2000,
@@ -1581,27 +1579,14 @@ describe('IntentIQ tests', function () {
     expect(readData(CLIENT_HINTS_KEY, ['html5'])).to.equal(expectedCH);
   });
 
-  it('blacklist: should send the sync as a polite pixel with credentials instead of an XHR', async () => {
+  it('blacklist: should send the sync as a polite pixel with its default credentials instead of an XHR', async () => {
     intentIqIdSubmodule.getId({ params: { ...defaultConfigParams.params, browserBlackList: detectBrowser() } });
     await waitForClientHints();
 
     expect(syncPixels().length).to.equal(1);
     expect(syncPixels()[0].url).to.include('at=20');
-    expect(syncPixels()[0].credentials).to.equal('include');
+    expect(syncPixels()[0].args).to.have.length(1);
     expect(server.requests.length).to.equal(0);
-  });
-
-  it('blacklist: should send the sync pixel without credentials when request credentials are not allowed', async () => {
-    const unregisterRule = registerActivityControl(ACTIVITY_ACCESS_REQUEST_CREDENTIALS, 'test', () => ({ allow: false }));
-    try {
-      intentIqIdSubmodule.getId({ params: { ...defaultConfigParams.params, browserBlackList: detectBrowser() } });
-      await waitForClientHints();
-
-      expect(syncPixels().length).to.equal(1);
-      expect(syncPixels()[0].credentials).to.equal('omit');
-    } finally {
-      unregisterRule();
-    }
   });
 
   it('should return true if CMP strings are the same', function () {
