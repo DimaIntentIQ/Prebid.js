@@ -16,8 +16,8 @@ import { storage, readData, storeData } from '../../../libraries/intentIqUtils/s
 import { gppDataHandler, uspDataHandler, gdprDataHandler } from '../../../src/consentHandler.js';
 import { clearAllCookies } from '../../helpers/cookies.js';
 import { detectBrowser, detectBrowserFromUserAgent, detectBrowserFromUserAgentData } from '../../../libraries/intentIqUtils/detectBrowserUtils.js';
-import { CLIENT_HINTS_KEY, FIRST_PARTY_KEY, PREBID, WITH_IIQ, WITHOUT_IIQ } from '../../../libraries/intentIqConstants/intentIqConstants.js';
-import { decryptData } from '../../../libraries/intentIqUtils/cryptionUtils.js';
+import { APS_EIDS_KEY, CLIENT_HINTS_KEY, FIRST_PARTY_KEY, PREBID, WITH_IIQ, WITHOUT_IIQ } from '../../../libraries/intentIqConstants/intentIqConstants.js';
+import { decryptData, encryptData } from '../../../libraries/intentIqUtils/cryptionUtils.js';
 import { highEntropyValuesAccessor } from '../../../src/fpd/sua.js';
 
 const partner = 10;
@@ -2229,5 +2229,91 @@ describe('IntentIQ tests', function () {
     const request = server.requests[0];
 
     expect(request.url).to.contain('testPercentage=100');
+  });
+
+  describe('APS shared storage', function () {
+    const partnerDataKey = FIRST_PARTY_KEY + '_' + partner;
+    const iiqEid = { source: 'intentiq.com', uids: [{ id: 'iiq-id', atype: 1 }], matcher: 'intentiq.com', mm: 5, inserter: 'pub.com' };
+    const ttdEid = { source: 'adsrvr.org', uids: [{ id: 'ttd-id', atype: 1 }], matcher: 'intentiq.com', mm: 5, inserter: 'pub.com' };
+    const readApsEids = () => {
+      const raw = localStorage.getItem(APS_EIDS_KEY);
+      return raw ? JSON.parse(decryptData(raw)).eids : null;
+    };
+    const respondWith = async (responseData, config = defaultConfigParams) => {
+      const submoduleCallback = intentIqIdSubmodule.getId(config).callback;
+      submoduleCallback(sinon.spy());
+      await waitForClientHints();
+      server.requests[0].respond(200, responseHeader, JSON.stringify(responseData));
+    };
+
+    it('should save eids from server response to APS shared storage', async function () {
+      await respondWith({ data: { eids: [iiqEid, ttdEid] }, ls: true });
+
+      expect(readApsEids()).to.deep.equal([iiqEid, ttdEid]);
+    });
+
+    it('should save eids only to cookie when partner allows only cookie storage', async function () {
+      await respondWith({ data: { eids: [iiqEid, ttdEid] }, ls: true }, { ...defaultConfigParams, enabledStorageTypes: ['cookie'] });
+
+      expect(readApsEids()).to.equal(null);
+      expect(JSON.parse(decryptData(storage.getCookie(APS_EIDS_KEY))).eids).to.deep.equal([iiqEid, ttdEid]);
+    });
+
+    it('should merge with eids already stored by another partner, incoming eid wins on source collision', async function () {
+      const otherPartnerEid = { source: 'loopme.com', uids: [{ id: 'loopme-id', atype: 1 }], inserter: 'other.com' };
+      const staleIiqEid = { ...iiqEid, uids: [{ id: 'stale-id', atype: 1 }], inserter: 'other.com' };
+      localStorage.setItem(APS_EIDS_KEY, encryptData(JSON.stringify({ eids: [otherPartnerEid, staleIiqEid] })));
+
+      await respondWith({ data: { eids: [iiqEid] }, ls: true });
+
+      expect(readApsEids()).to.deep.equal([otherPartnerEid, iiqEid]);
+    });
+
+    it('should save cached eids from partner data to APS shared storage', function () {
+      localStorage.setItem(partnerDataKey, JSON.stringify({
+        date: Date.now(),
+        cttl: 9999999999999,
+        data: encryptData(JSON.stringify({ eids: [ttdEid] }))
+      }));
+
+      intentIqIdSubmodule.getId(defaultConfigParams);
+
+      expect(readApsEids()).to.deep.equal([ttdEid]);
+    });
+
+    it('should not save eids to APS shared storage when user is opted out', function () {
+      localStorage.setItem(FIRST_PARTY_KEY, JSON.stringify({ isOptedOut: true, sCal: Date.now() }));
+      localStorage.setItem(partnerDataKey, JSON.stringify({
+        date: Date.now(),
+        cttl: 9999999999999,
+        data: encryptData(JSON.stringify({ eids: [ttdEid] }))
+      }));
+
+      intentIqIdSubmodule.getId(defaultConfigParams);
+
+      expect(localStorage.getItem(APS_EIDS_KEY)).to.be.null;
+    });
+
+    it('should remove APS shared storage when server responds with opt out', async function () {
+      localStorage.setItem(APS_EIDS_KEY, encryptData(JSON.stringify({ eids: [iiqEid, ttdEid] })));
+
+      await respondWith({ isOptedOut: true, tc: 41 });
+
+      expect(localStorage.getItem(APS_EIDS_KEY)).to.be.null;
+    });
+
+    it('should remove APS shared storage from cookie when partner allows only cookie and server responds with opt out', async function () {
+      storage.setCookie(APS_EIDS_KEY, encryptData(JSON.stringify({ eids: [iiqEid] })), new Date(Date.now() + 60000).toUTCString(), 'Lax');
+
+      await respondWith({ isOptedOut: true, tc: 41 }, { ...defaultConfigParams, enabledStorageTypes: ['cookie'] });
+
+      expect(storage.getCookie(APS_EIDS_KEY)).to.not.be.ok;
+    });
+
+    it('should not save eids without source to APS shared storage', async function () {
+      await respondWith({ data: { eids: ['abc'] }, ls: true });
+
+      expect(localStorage.getItem(APS_EIDS_KEY)).to.be.null;
+    });
   });
 });
