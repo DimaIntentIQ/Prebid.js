@@ -7,7 +7,12 @@ import { isSlotMatchingAdUnitCode } from '../libraries/gptUtils/gptUtils.js';
 import { serializeSupplyChain } from '../libraries/schainSerializer/schainSerializer.js';
 import { getBoundingClientRect } from '../libraries/boundingClientRect/boundingClientRect.js';
 
+/**
+ * @typedef {import('./eplanningBidAdapter.d.ts').EplanningBidParams} EplanningBidParams
+ */
+
 const BIDDER_CODE = 'eplanning';
+const GVLID = 90;
 export const storage = getStorageManager({ bidderCode: BIDDER_CODE });
 const rnd = Math.random();
 const DEFAULT_SV = 'pbjs.e-planning.net';
@@ -31,6 +36,7 @@ const MAX_LEN_URL = 255;
 
 export const spec = {
   code: BIDDER_CODE,
+  gvlid: GVLID,
   supportedMediaTypes: [BANNER, VIDEO],
 
   isBidRequestValid: function(bid) {

@@ -38,6 +38,8 @@ export const EVENTS = {
   TCF2_ENFORCEMENT: 'tcf2Enforcement',
   AUCTION_DEBUG: 'auctionDebug',
   BID_VIEWABLE: 'bidViewable',
+  BID_CLICK_INFERRED: 'bidClickInferred',
+  BID_CLICK: 'bidClick',
   STALE_RENDER: 'staleRender',
   EXPIRED_RENDER: 'expiredRender',
   BILLABLE_EVENT: 'billableEvent',
@@ -45,7 +47,8 @@ export const EVENTS = {
   BEFORE_PBS_HTTP: 'beforePBSHttp',
   BROWSI_INIT: 'browsiInit',
   BROWSI_DATA: 'browsiData',
-  BROWSER_INTERVENTION: 'browserIntervention'
+  BROWSER_INTERVENTION: 'browserIntervention',
+  UNAUTHORIZED_VIDEO: 'unauthorizedVideo'
 } as const;
 
 export const AD_RENDER_FAILED_REASON = {
@@ -53,7 +56,8 @@ export const AD_RENDER_FAILED_REASON = {
   NO_AD: 'noAd',
   EXCEPTION: 'exception',
   CANNOT_FIND_AD: 'cannotFindAd',
-  MISSING_DOC_OR_ADID: 'missingDocOrAdid'
+  MISSING_DOC_OR_ADID: 'missingDocOrAdid',
+  INVALID_ELEMENT: 'invalidElement',
 } as const;
 
 export const EVENT_ID_PATHS = {

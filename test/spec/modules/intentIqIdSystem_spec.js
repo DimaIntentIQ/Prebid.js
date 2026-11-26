@@ -2,9 +2,11 @@
 import { expect } from 'chai';
 import * as utils from 'src/utils.js';
 import { server } from 'test/mocks/xhr.js';
+import { targetingConfigApi } from 'test/mocks/gpt.js';
 import {
   intentIqIdSubmodule,
   handleClientHints,
+  dep,
   firstPartyData as moduleFPD,
   isCMPStringTheSame, createPixelUrl, translateMetadata,
   initializeGlobalIIQ,
@@ -16,6 +18,7 @@ import { clearAllCookies } from '../../helpers/cookies.js';
 import { detectBrowser, detectBrowserFromUserAgent, detectBrowserFromUserAgentData } from '../../../libraries/intentIqUtils/detectBrowserUtils.js';
 import { CLIENT_HINTS_KEY, FIRST_PARTY_KEY, PREBID, WITH_IIQ, WITHOUT_IIQ } from '../../../libraries/intentIqConstants/intentIqConstants.js';
 import { decryptData } from '../../../libraries/intentIqUtils/cryptionUtils.js';
+import { highEntropyValuesAccessor } from '../../../src/fpd/sua.js';
 
 const partner = 10;
 const pai = '11';
@@ -58,27 +61,11 @@ export const testClientHints = {
   wow64: false
 };
 
-function stubCHDeferred() {
-  let resolve, reject;
-  const p = new Promise((res, rej) => { resolve = res; reject = rej; });
-  const originalUAD = navigator.userAgentData;
-  const stub = sinon.stub(navigator, 'userAgentData').value({
-    ...originalUAD,
-    getHighEntropyValues: () => p
-  });
-  return { resolve, reject, stub };
-}
-
-function stubCHReject(err = new Error('boom')) {
-  ensureUAData();
-  return sinon.stub(navigator.userAgentData, 'getHighEntropyValues')
-    .callsFake(() => Promise.reject(err));
-}
-
-function ensureUAData() {
-  if (!navigator.userAgentData) {
-    Object.defineProperty(navigator, 'userAgentData', { value: {}, configurable: true });
-  }
+function stubCHDeferred(stub) {
+  let resolve;
+  const p = new Promise(res => { resolve = res; });
+  stub.returns(p);
+  return { resolve };
 }
 
 async function waitForClientHints() {
@@ -105,23 +92,12 @@ async function waitForClientHints() {
 
 const testAPILink = 'https://new-test-api.intentiq.com';
 const syncTestAPILink = 'https://new-test-sync.intentiq.com';
-const mockGAM = () => {
-  const targetingObject = {};
-  return {
-    cmd: [],
-    pubads: () => ({
-      setTargeting: (key, value) => {
-        targetingObject[key] = value;
-      },
-      getTargeting: (key) => {
-        return [targetingObject[key]];
-      },
-      getTargetingKeys: () => {
-        return Object.keys(targetingObject);
-      }
-    })
-  };
-};
+const mockGAM = () => ({
+  cmd: [],
+  ...targetingConfigApi()
+});
+const getGamTargeting = (gam, key) => gam.getConfig('targeting').targeting[key];
+const getGamTargetingKeys = (gam) => Object.keys(gam.getConfig('targeting').targeting);
 
 const regionCases = [
   { name: 'no region (default)', region: undefined, expected: 'https://api.intentiq.com' },
@@ -143,6 +119,7 @@ describe('IntentIQ tests', function () {
   let logErrorStub;
   let clock;
   let politeTriggerPixelStub;
+  let getHighEntropyValuesStub;
   const syncPixels = () => politeTriggerPixelStub.getCalls().map((call) => ({ url: call.args[0], args: call.args }));
   const testLSValue = {
     'date': Date.now(),
@@ -173,6 +150,7 @@ describe('IntentIQ tests', function () {
     storage.setCookie(FIRST_PARTY_KEY + '_' + partner, '', expiredDate, 'Lax');
     sandbox = sinon.createSandbox();
     politeTriggerPixelStub = sandbox.stub(utils, 'politeTriggerPixel');
+    getHighEntropyValuesStub = sandbox.stub(dep, 'getHighEntropyValues').resolves(null);
     logErrorStub = sinon.stub(utils, 'logError');
     clock = sinon.useFakeTimers({ now: Date.now() });
     globalThis.__iiqClock = clock;
@@ -223,7 +201,7 @@ describe('IntentIQ tests', function () {
     expect(submodule).to.be.undefined;
   });
 
-  it('should use setConfig when available in setGamReporting', function () {
+  it('should use setConfig in setGamReporting', function () {
     const setConfigSpy = sinon.spy();
     const pubadsSetTargetingSpy = sinon.spy();
     const mockGAM = {
@@ -245,22 +223,6 @@ describe('IntentIQ tests', function () {
       }
     });
     expect(pubadsSetTargetingSpy.called).to.equal(false);
-  });
-
-  it('should fall back to pubads.setTargeting when setConfig is missing', function () {
-    const pubadsSetTargetingSpy = sinon.spy();
-    const mockGAM = {
-      cmd: [],
-      pubads: () => ({
-        setTargeting: pubadsSetTargetingSpy
-      })
-    };
-
-    setGamReporting(mockGAM, 'intent_iq_group', 'B');
-    mockGAM.cmd.forEach((fn) => fn());
-
-    expect(pubadsSetTargetingSpy.calledOnce).to.equal(true);
-    expect(pubadsSetTargetingSpy.firstCall.args).to.deep.equal(['intent_iq_group', 'B']);
   });
 
   it('should not save data in cookie if relevant type not set', async function () {
@@ -404,17 +366,7 @@ describe('IntentIQ tests', function () {
     const expectedGamParameterName = 'intent_iq_group';
     defaultConfigParams.params.abPercentage = 0; // "B" provided percentage by user
 
-    const originalPubads = mockGamObject.pubads;
-    const setTargetingSpy = sinon.spy();
-    mockGamObject.pubads = function () {
-      const obj = { ...originalPubads.apply(this, arguments) };
-      const originalSetTargeting = obj.setTargeting;
-      obj.setTargeting = function (...args) {
-        setTargetingSpy(...args);
-        return originalSetTargeting.apply(this, args);
-      };
-      return obj;
-    };
+    const setTargetingSpy = sinon.spy(mockGamObject, 'setConfig');
 
     defaultConfigParams.params.gamObjectReference = mockGamObject;
 
@@ -426,14 +378,14 @@ describe('IntentIQ tests', function () {
     mockGamObject.cmd.forEach(cb => cb());
     mockGamObject.cmd = [];
 
-    const groupBeforeResponse = mockGamObject.pubads().getTargeting(expectedGamParameterName);
+    const groupBeforeResponse = getGamTargeting(mockGamObject, expectedGamParameterName);
 
     request.respond(200, responseHeader, JSON.stringify({ tc: 20 }));
 
     mockGamObject.cmd.forEach(cb => cb());
     mockGamObject.cmd = [];
 
-    const groupAfterResponse = mockGamObject.pubads().getTargeting(expectedGamParameterName);
+    const groupAfterResponse = getGamTargeting(mockGamObject, expectedGamParameterName);
 
     expect(request.url).to.contain('https://api.intentiq.com/profiles_engine/ProfilesEngineServlet?at=39');
     expect(groupBeforeResponse).to.deep.equal([WITHOUT_IIQ]);
@@ -453,11 +405,11 @@ describe('IntentIQ tests', function () {
 
     const req = server.requests[0];
     mockGam.cmd.forEach(fn => fn());
-    const before = mockGam.pubads().getTargeting('intent_iq_group');
+    const before = getGamTargeting(mockGam, 'intent_iq_group');
 
     req.respond(200, responseHeader, JSON.stringify({ tc: 41 }));
     mockGam.cmd.forEach(fn => fn());
-    const after = mockGam.pubads().getTargeting('intent_iq_group');
+    const after = getGamTargeting(mockGam, 'intent_iq_group');
 
     expect(before).to.deep.equal([WITH_IIQ]);
     expect(after).to.deep.equal([WITHOUT_IIQ]);
@@ -477,7 +429,7 @@ describe('IntentIQ tests', function () {
     await waitForClientHints();
 
     mockGam.cmd.forEach(fn => fn());
-    const group = mockGam.pubads().getTargeting('intent_iq_group');
+    const group = getGamTargeting(mockGam, 'intent_iq_group');
 
     expect(group).to.deep.equal([WITHOUT_IIQ]);
   });
@@ -493,7 +445,7 @@ describe('IntentIQ tests', function () {
     const submoduleCallback = intentIqIdSubmodule.getId(defaultConfigParams).callback;
     submoduleCallback(callBackSpy);
     mockGamObject.cmd.forEach(cb => cb());
-    const targetingKeys = mockGamObject.pubads().getTargetingKeys();
+    const targetingKeys = getGamTargetingKeys(mockGamObject);
 
     expect(targetingKeys).to.include(customParamName);
   });
@@ -501,15 +453,7 @@ describe('IntentIQ tests', function () {
   it('should NOT call GAM setTargeting when current browser is in browserBlackList', function () {
     const usedBrowser = 'chrome';
     const gam = mockGAM();
-    const pa = gam.pubads();
-    sinon.stub(gam, 'pubads').returns(pa);
-
-    const originalSetTargeting = pa.setTargeting;
-    let setTargetingCalls = 0;
-    pa.setTargeting = function (...args) {
-      setTargetingCalls++;
-      return originalSetTargeting.apply(this, args);
-    };
+    const setConfigSpy = sinon.spy(gam, 'setConfig');
 
     localStorage.setItem(FIRST_PARTY_KEY, JSON.stringify({
       pcid: 'pcid-1',
@@ -532,8 +476,8 @@ describe('IntentIQ tests', function () {
     gam.cmd.forEach(fn => fn());
     const currentBrowserLowerCase = detectBrowser();
     if (currentBrowserLowerCase === usedBrowser) {
-      expect(setTargetingCalls).to.equal(0);
-      expect(pa.getTargetingKeys()).to.not.include('custom_gam_param');
+      sinon.assert.notCalled(setConfigSpy);
+      expect(getGamTargetingKeys(gam)).to.not.include('custom_gam_param');
     }
   });
 
@@ -1345,18 +1289,36 @@ describe('IntentIQ tests', function () {
     });
   });
 
-  it('should get and save client hints to storage', async () => {
-    localStorage.clear();
-    Object.defineProperty(navigator, 'userAgentData', {
-      value: { getHighEntropyValues: async () => testClientHints },
-      configurable: true
+  [false, true].forEach(wow64 => {
+    it(`should preserve the client hint encoding with wow64=${wow64}`, async () => {
+      const rawHints = { ...testClientHints, wow64, model: wow64 ? 'Test device' : '' };
+      getHighEntropyValuesStub.resolves(rawHints);
+      intentIqIdSubmodule.getId(defaultConfigParams).callback(sinon.spy());
+      await waitForClientHints();
+
+      const expectedClientHints = handleClientHints(rawHints);
+      expect(readData(CLIENT_HINTS_KEY, ['html5'])).to.equal(expectedClientHints);
+      expect(server.requests[0].url).to.include(`&uh=${encodeURIComponent(expectedClientHints)}`);
+      expect(getHighEntropyValuesStub.calledOnce).to.be.true;
+      expect(getHighEntropyValuesStub.firstCall.args[0]).to.have.members([
+        'architecture', 'bitness', 'brands', 'fullVersionList', 'mobile', 'model', 'platform', 'platformVersion', 'wow64'
+      ]);
     });
-    intentIqIdSubmodule.getId(defaultConfigParams);
+  });
+
+  it('should omit withheld high entropy properties from the encoded hints', async () => {
+    const rawHints = { brands: testClientHints.brands, mobile: false, platform: 'Linux' };
+    getHighEntropyValuesStub.resolves(rawHints);
+    intentIqIdSubmodule.getId(defaultConfigParams).callback(sinon.spy());
     await waitForClientHints();
 
     const savedClientHints = readData(CLIENT_HINTS_KEY, ['html5']);
-    const expectedClientHints = handleClientHints(testClientHints);
-    expect(savedClientHints).to.equal(expectedClientHints);
+    expect(JSON.parse(savedClientHints)).to.deep.equal({
+      '0': '"Not(A:Brand";v="24", "Chromium";v="122"',
+      '1': '?0',
+      '2': '"Linux"'
+    });
+    expect(server.requests[0].url).to.include(`&uh=${encodeURIComponent(savedClientHints)}`);
   });
 
   it('should add clientHints to the URL if provided', function () {
@@ -1430,10 +1392,10 @@ describe('IntentIQ tests', function () {
     expect(url).to.include('&isInTestGroup=');
   });
 
-  it('should sends uh from LS immediately and later updates LS with fresh CH', async () => {
+  it('should send uh from LS immediately and later update LS with fresh CH', async () => {
     localStorage.setItem(CLIENT_HINTS_KEY, 'OLD_CH_VALUE');
     const callBackSpy = sinon.spy();
-    const { resolve, stub } = stubCHDeferred(); // Defer CH-API resolution
+    const { resolve } = stubCHDeferred(getHighEntropyValuesStub);
 
     const cfg = { params: { ...defaultConfigParams.params, chTimeout: 300 } };
     const submoduleCallback = intentIqIdSubmodule.getId(cfg).callback;
@@ -1453,14 +1415,12 @@ describe('IntentIQ tests', function () {
     const expectedFresh = handleClientHints(testClientHints);
     expect(readData(CLIENT_HINTS_KEY, ['html5'])).to.equal(expectedFresh);
     expect(server.requests.length).to.equal(1);
-
-    stub.restore();
   });
 
   it('should use cached uh immediately and clears LS on CH error (API supported)', async () => {
     const callBackSpy = sinon.spy();
     localStorage.setItem(CLIENT_HINTS_KEY, 'OLD_CH_VALUE');
-    const chStub = stubCHReject(new Error('boom')); // CH API rejects
+    getHighEntropyValuesStub.rejects(new Error('boom'));
     const cfg = { params: { ...defaultConfigParams.params, chTimeout: 200 } };
     const submoduleCallback = intentIqIdSubmodule.getId(cfg).callback;
     submoduleCallback(callBackSpy);
@@ -1476,13 +1436,10 @@ describe('IntentIQ tests', function () {
     const saved = readData(CLIENT_HINTS_KEY, ['html5']);
     expect(saved === '' || saved === null).to.be.true;
     expect(server.requests.length).to.equal(1);
-
-    chStub.restore();
   });
 
-  it('should clear CLIENT_HINTS from LS and NOT send uh when CH are not supported', async function () {
-    localStorage.setItem(CLIENT_HINTS_KEY, 'OLD_CH_VALUE');
-    const uadStub = sinon.stub(navigator, 'userAgentData').value(undefined); // no CH-API
+  it('should send without uh when client hints are unavailable and no hints are cached', async function () {
+    getHighEntropyValuesStub.callsFake(highEntropyValuesAccessor({}));
     const cbSpy = sinon.spy();
     const cfg = { params: { ...defaultConfigParams.params, chTimeout: 0 } };
 
@@ -1495,13 +1452,26 @@ describe('IntentIQ tests', function () {
     expect(req).to.exist;
     expect(req.url).to.not.include('&uh=');
     expect(saved === '' || saved === null).to.be.true;
+  });
 
-    uadStub.restore();
+  it('should clear cached hints and omit uh on subsequent requests when client hints resolve null', async () => {
+    localStorage.setItem(CLIENT_HINTS_KEY, 'OLD_CH_VALUE');
+    getHighEntropyValuesStub.resolves(null);
+
+    intentIqIdSubmodule.getId(defaultConfigParams).callback(sinon.spy());
+    expect(server.requests[0].url).to.include('&uh=OLD_CH_VALUE');
+    await waitForClientHints();
+    expect(readData(CLIENT_HINTS_KEY, ['html5'])).to.equal(null);
+
+    intentIqIdSubmodule.getId(defaultConfigParams).callback(sinon.spy());
+    await waitForClientHints();
+    expect(server.requests).to.have.lengthOf(2);
+    expect(server.requests[1].url).to.not.include('&uh=');
   });
 
   it('blacklist: should use uh from LS immediately and updates LS when CH resolves', async () => {
     localStorage.setItem(CLIENT_HINTS_KEY, 'OLD_CH_VALUE');
-    const { resolve, stub } = stubCHDeferred(); // getHighEntropyValues returns pending promise
+    const { resolve } = stubCHDeferred(getHighEntropyValuesStub);
     const blk = detectBrowser();
     const cfg = { params: { ...defaultConfigParams.params, browserBlackList: blk, chTimeout: 50 } };
 
@@ -1521,17 +1491,13 @@ describe('IntentIQ tests', function () {
     const expectedFresh = handleClientHints(testClientHints);
     expect(readData(CLIENT_HINTS_KEY, ['html5'])).to.equal(expectedFresh);
     expect(syncPixels().length).to.equal(1);
-
-    stub.restore();
   });
 
   it('blacklist: should send sync with uh when CH supported and ready', async () => {
     localStorage.removeItem(CLIENT_HINTS_KEY);
     const expectedCH = handleClientHints(testClientHints);
 
-    let uadStub = sinon.stub(navigator, 'userAgentData').value({
-      getHighEntropyValues: async () => testClientHints
-    });
+    getHighEntropyValuesStub.resolves(testClientHints);
 
     const blk = detectBrowser();
     const cfg = {
@@ -1550,33 +1516,33 @@ describe('IntentIQ tests', function () {
     expect(req.url).to.include('at=20');
     expect(req.url).to.include(`&uh=${encodeURIComponent(expectedCH)}`);
     expect(readData(CLIENT_HINTS_KEY, ['html5'])).to.equal(expectedCH);
-
-    uadStub.restore();
   });
 
-  it('blacklist: sends sync with uh when CH supported and ready', async () => {
+  it('blacklist: should send sync without uh on timeout and store hints when they arrive', async () => {
     const expectedCH = handleClientHints(testClientHints);
-    Object.defineProperty(navigator, 'userAgentData', {
-      value: { getHighEntropyValues: async () => testClientHints },
-      configurable: true
-    });
+    const { resolve } = stubCHDeferred(getHighEntropyValuesStub);
     const blk = detectBrowser();
     const cfg = {
       params: {
         ...defaultConfigParams.params,
         browserBlackList: blk,
-        chTimeout: 300
+        chTimeout: 10
       }
     };
 
     intentIqIdSubmodule.getId(cfg);
-    await waitForClientHints();
+    expect(server.requests).to.have.lengthOf(0);
+    await clock.tickAsync(11);
 
     const req = syncPixels()[0];
     expect(req).to.exist;
     expect(req.url).to.include('at=20');
-    expect(req.url).to.include(`&uh=${encodeURIComponent(expectedCH)}`);
+    expect(req.url).to.not.include('&uh=');
+
+    resolve(testClientHints);
+    await waitForClientHints();
     expect(readData(CLIENT_HINTS_KEY, ['html5'])).to.equal(expectedCH);
+    expect(syncPixels().length).to.equal(1);
   });
 
   it('blacklist: should send the sync as a polite pixel with its default credentials instead of an XHR', async () => {

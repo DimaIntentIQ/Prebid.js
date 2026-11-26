@@ -5,9 +5,10 @@ import {
   getUserSyncs,
   interpretResponse,
 } from '../libraries/xeUtils/bidderUtils.js';
-import { deepAccess, getBidIdParameter, isArray, logError } from '../src/utils.js';
+import { getBidIdParameter, isArray, logError } from '../src/utils.js';
 
 const BIDDER_CODE = 'anyclip';
+const GVLID = 1400;
 const ENDPOINT = 'https://prebid.anyclip.com';
 
 function isBidRequestValid(bid) {
@@ -21,7 +22,7 @@ function isBidRequestValid(bid) {
     return false;
   }
 
-  if (deepAccess(bid, 'mediaTypes.video') && !isArray(deepAccess(bid, 'mediaTypes.video.playerSize'))) {
+  if (bid?.mediaTypes?.video && !isArray(bid?.mediaTypes?.video?.playerSize)) {
     logError('mediaTypes.video.playerSize is required for video');
     return false;
   }
@@ -31,7 +32,8 @@ function isBidRequestValid(bid) {
 
 export const spec = {
   code: BIDDER_CODE,
-  aliases: ['anyclip'],
+  gvlid: GVLID,
+  aliases: [{ code: 'anyclip', gvlid: GVLID }],
   supportedMediaTypes: [BANNER, VIDEO],
   isBidRequestValid,
   buildRequests: (validBidRequests, bidderRequest) => {

@@ -4,10 +4,12 @@ import {
   deferRendering,
   doRender,
   emitAdRenderSucceeded,
+  getBidToRender,
   getRenderingData,
   handleCreativeEvent,
+  reportBidClick,
   handleNativeMessage,
-  handleRender, markWinningBid, renderAdDirect, renderIfDeferred,
+  handleRender, markWinner, markWinningBid, renderAdDirect, renderIfDeferred, userActivation,
 } from '../../../src/adRendering.js';
 import { getPreparedBidForAuction } from '../../../src/auction.js';
 import { AD_RENDER_FAILED_REASON, BID_STATUS, EVENTS } from 'src/constants.js';
@@ -68,6 +70,79 @@ describe('adRendering', () => {
           expect(result[prop]).to.eql('prepost');
         });
       });
+    });
+  });
+
+  describe('bid click deduplication', () => {
+    let bid;
+    beforeEach(() => {
+      bid = { adId: 'bid-click-' + Math.random(), adUnitCode: 'slot', bidder: 'test', mediaType: 'banner', clickUrl: 'https://click.example.com' };
+      sandbox.stub(events, 'emit');
+      sandbox.stub(utils, 'politeTriggerPixel');
+      sandbox.stub(userActivation, 'hasBeenActive').returns(true);
+      config.setConfig({ bidClickTracking: { enabled: true, fireTrackers: true } });
+    });
+    afterEach(() => config.setConfig({ bidClickTracking: { enabled: false } }));
+
+    it('emits and fires a tracker only once if observed click precedes inference', () => {
+      expect(reportBidClick(bid, 'creativeClick')).to.equal(true);
+      expect(reportBidClick(bid, 'iframeFocus')).to.equal(false);
+      sinon.assert.calledOnceWithExactly(utils.politeTriggerPixel, bid.clickUrl, 'include', true);
+      sinon.assert.calledOnceWithExactly(events.emit, EVENTS.BID_CLICK, sinon.match({ adId: bid.adId, method: 'creativeClick' }));
+    });
+
+    it('emits and fires a tracker only once if inference precedes observed click', () => {
+      expect(reportBidClick(bid, 'iframeFocus')).to.equal(true);
+      expect(reportBidClick(bid, 'creativeClick')).to.equal(false);
+      sinon.assert.calledOnceWithExactly(utils.politeTriggerPixel, bid.clickUrl, 'include', true);
+      sinon.assert.calledOnceWithExactly(events.emit, EVENTS.BID_CLICK_INFERRED, sinon.match({ adId: bid.adId, method: 'iframeFocus' }));
+    });
+
+    it('does not fire a second tracker or event for repeated clicks', () => {
+      reportBidClick(bid, 'creativeClick');
+      reportBidClick(bid, 'creativeClick');
+      sinon.assert.calledOnce(utils.politeTriggerPixel);
+      sinon.assert.calledOnce(events.emit);
+    });
+
+    it('emits analytics event but does not fire a tracker in event-only mode', () => {
+      config.setConfig({ bidClickTracking: { enabled: true, fireTrackers: false } });
+      reportBidClick(bid, 'creativeClick');
+      sinon.assert.calledOnce(events.emit);
+      sinon.assert.notCalled(utils.politeTriggerPixel);
+    });
+
+    it('does not report when disabled', () => {
+      config.setConfig({ bidClickTracking: { enabled: false } });
+      expect(reportBidClick(bid, 'creativeClick')).to.equal(false);
+      sinon.assert.notCalled(events.emit);
+      sinon.assert.notCalled(utils.politeTriggerPixel);
+    });
+
+    it('ignores banner clicks before the user has interacted with the page, without using up the bid', () => {
+      userActivation.hasBeenActive.returns(false);
+      expect(reportBidClick(bid, 'creativeClick')).to.equal(false);
+      expect(reportBidClick(bid, 'iframeFocus')).to.equal(false);
+      sinon.assert.notCalled(events.emit);
+      sinon.assert.notCalled(utils.politeTriggerPixel);
+      userActivation.hasBeenActive.returns(true);
+      expect(reportBidClick(bid, 'creativeClick')).to.equal(true);
+      sinon.assert.calledOnce(events.emit);
+      sinon.assert.calledOnce(utils.politeTriggerPixel);
+    });
+
+    it('emits the event but does not fire a tracker when user activation is not supported', () => {
+      userActivation.hasBeenActive.returns(undefined);
+      expect(reportBidClick(bid, 'creativeClick')).to.equal(true);
+      sinon.assert.calledOnce(events.emit);
+      sinon.assert.notCalled(utils.politeTriggerPixel);
+    });
+
+    it('does not fire click URL if creative has CLICKTHROUGH macro', () => {
+      bid.ad = '<a href="${CLICKTHROUGH}">Ad</a>';
+      reportBidClick(bid, 'creativeClick');
+      sinon.assert.calledOnce(events.emit);
+      sinon.assert.notCalled(utils.politeTriggerPixel);
     });
   });
 
@@ -225,6 +300,163 @@ describe('adRendering', () => {
       });
     });
 
+    describe('getBidToRender', () => {
+      const settled = () => new Promise((resolve) => setTimeout(resolve));
+      let expired, replacement, replaceExpiredBid;
+
+      function getBid(adId, forRender = true) {
+        let result;
+        getBidToRender(auctionManager.findBidByAdId(adId), forRender, (bid) => { result = bid; });
+        return result;
+      }
+
+      function getBidAsync(adId, forRender = true) {
+        return new Promise((resolve) => getBidToRender(auctionManager.findBidByAdId(adId), forRender, resolve));
+      }
+
+      beforeEach(() => {
+        expired = { adId: 'expired', adUnitCode: 'au', mediaType: 'banner', responseTimestamp: Date.now() - 10000, ttl: 1 };
+        replacement = { adId: 'replacement', adUnitCode: 'au', mediaType: 'banner', responseTimestamp: Date.now(), ttl: 300 };
+        sandbox.stub(auctionManager, 'findBidByAdId').callsFake((adId) => [expired, replacement].find((bid) => bid.adId === adId));
+        sandbox.stub(auctionManager, 'addWinningBid');
+        replaceExpiredBid = sinon.stub().callsFake(() => replacement);
+      });
+      afterEach(() => {
+        config.resetConfig();
+      });
+
+      it('should return the bid identified by adId', () => {
+        expect(getBid('replacement')).to.equal(replacement);
+      });
+
+      it('should return an expired bid if replaceExpiredBid is not set', () => {
+        expect(getBid('expired')).to.equal(expired);
+      });
+
+      describe('when replaceExpiredBid is set', () => {
+        beforeEach(() => {
+          config.setConfig({ auctionOptions: { replaceExpiredBid } });
+        });
+
+        it('should not ask for a replacement of a bid that has not expired', () => {
+          expect(getBid('replacement')).to.equal(replacement);
+          sinon.assert.notCalled(replaceExpiredBid);
+        });
+
+        it('should not ask for a replacement of a bid that was already rendered', () => {
+          expired.status = BID_STATUS.RENDERED;
+          expect(getBid('expired')).to.equal(expired);
+          sinon.assert.notCalled(replaceExpiredBid);
+        });
+
+        it('should not ask for a replacement of a bid that defers rendering', () => {
+          expired.deferRendering = true;
+          expect(getBid('expired')).to.equal(expired);
+          sinon.assert.notCalled(replaceExpiredBid);
+        });
+
+        it('should not ask for a replacement of a bid that already won', () => {
+          markWinner(expired);
+          expect(getBid('expired')).to.equal(expired);
+          sinon.assert.notCalled(replaceExpiredBid);
+        });
+
+        it('should not ask for a replacement when not rendering', () => {
+          expect(getBid('expired', false)).to.equal(expired);
+          sinon.assert.notCalled(replaceExpiredBid);
+        });
+
+        it('should return the replacement of an expired bid synchronously, when it is available synchronously', () => {
+          expect(getBid('expired')).to.equal(replacement);
+          sinon.assert.calledWith(replaceExpiredBid, expired);
+        });
+
+        it('should wait for a replacement returned as a promise', async () => {
+          let resolveReplacement;
+          replaceExpiredBid.callsFake(() => new Promise((resolve) => { resolveReplacement = resolve; }));
+          const callback = sinon.stub();
+          getBidToRender(expired, true, callback);
+          await settled();
+          sinon.assert.notCalled(callback);
+          resolveReplacement(replacement);
+          await settled();
+          sinon.assert.calledOnceWithExactly(callback, replacement);
+        });
+
+        it('should still run the other waiting callbacks if one throws', async () => {
+          replaceExpiredBid.callsFake(() => new Promise((resolve) => setTimeout(() => resolve(replacement))));
+          const callback = sinon.stub();
+          getBidToRender(expired, true, () => { throw new Error(); });
+          getBidToRender(expired, true, callback);
+          await settled();
+          sinon.assert.calledWith(callback, replacement);
+        });
+
+        it('should emit EXPIRED_RENDER for the expired bid', () => {
+          getBid('expired');
+          sinon.assert.calledWith(events.emit, EVENTS.EXPIRED_RENDER, expired);
+        });
+
+        it('should keep resolving the expired adId to the replacement, asking for it only once', () => {
+          getBid('expired');
+          expect(getBid('expired', false)).to.equal(replacement);
+          expect(getBid('expired')).to.equal(replacement);
+          sinon.assert.calledOnce(replaceExpiredBid);
+        });
+
+        it('should not ask again when replaceExpiredBid renders the same ad', () => {
+          let nested;
+          replaceExpiredBid.callsFake(() => {
+            nested = getBid('expired');
+            return replacement;
+          });
+          expect(getBid('expired')).to.equal(replacement);
+          expect(nested).to.equal(expired);
+          sinon.assert.calledOnce(replaceExpiredBid);
+        });
+
+        it('should ask for it only once while a replacement is pending', async () => {
+          replaceExpiredBid.callsFake(() => new Promise((resolve) => setTimeout(() => resolve(replacement))));
+          const bids = await Promise.all([getBidAsync('expired'), getBidAsync('expired', false)]);
+          expect(bids).to.eql([replacement, replacement]);
+          sinon.assert.calledOnce(replaceExpiredBid);
+        });
+
+        Object.entries({
+          'returns nothing': () => replaceExpiredBid.returns(null),
+          'throws': () => replaceExpiredBid.throws(new Error()),
+          'rejects': () => replaceExpiredBid.callsFake(() => Promise.reject(new Error())),
+          'returns the expired bid': () => replaceExpiredBid.callsFake(() => expired),
+          'returns an expired bid': () => { replacement.responseTimestamp = 0; },
+          'returns a bid that was already rendered': () => { replacement.status = BID_STATUS.RENDERED; },
+          'returns a bid that already won': () => { markWinner(replacement); },
+          'returns a bid that defers rendering': () => { replacement.deferRendering = true; },
+          'returns a bid of a different media type': () => { replacement.mediaType = 'native'; },
+          'returns a bid for a different ad unit': () => { replacement.adUnitCode = 'other-au'; },
+          'returns a bid with a renderer that runs outside the creative frame': () => { replacement.renderer = { url: 'https://example.com/renderer.js' }; },
+        }).forEach(([t, setup]) => {
+          describe(`when replaceExpiredBid ${t}`, () => {
+            beforeEach(setup);
+
+            it('should return the expired bid', async () => {
+              expect(await getBidAsync('expired')).to.equal(expired);
+            });
+
+            it('should leave EXPIRED_RENDER to the usual rendering logic', async () => {
+              await getBidAsync('expired');
+              sinon.assert.neverCalledWith(events.emit, EVENTS.EXPIRED_RENDER);
+            });
+
+            it('should not ask again', async () => {
+              await getBidAsync('expired');
+              await getBidAsync('expired');
+              sinon.assert.calledOnce(replaceExpiredBid);
+            });
+          });
+        });
+      });
+    });
+
     describe('renderAdDirect, when legacyRender is enabled', () => {
       const SAFE_RENDERER_URL = 'https://example.com/renderer.js';
       let doc, bid, creativeRender;
@@ -316,6 +548,22 @@ describe('adRendering', () => {
         sinon.assert.notCalled(write);
         sinon.assert.notCalled(close);
         sinon.assert.calledOnce(creativeRender);
+      });
+
+      it('synchronously writes the replacement of an expired bid', () => {
+        const replacement = {
+          adId: 'replacement',
+          ad: '<div>replacement</div>',
+          creativeId: bid.creativeId,
+          responseTimestamp: Date.now(),
+          ttl: 300
+        };
+        Object.assign(bid, { responseTimestamp: Date.now() - 10000, ttl: 1 });
+        config.setConfig({ auctionOptions: { legacyRender: true, replaceExpiredBid: () => replacement } });
+        renderAdDirect(doc, bid.adId);
+        sinon.assert.calledWith(doc.write, replacement.ad);
+        sinon.assert.neverCalledWith(doc.write, bid.ad);
+        sinon.assert.calledWith(events.emit, EVENTS.AD_RENDER_SUCCEEDED, sinon.match({ adId: replacement.adId, bid: replacement }));
       });
 
       if (FEATURES.VIDEO) {
@@ -460,6 +708,11 @@ describe('adRendering', () => {
         expect(bidResponse.viewUrl).to.eql('https://view.example.com');
         sinon.assert.called(doRenderStub);
       });
+      it('stores clickUrl on the bid response before rendering hooks run', () => {
+        handleRender({ adId, bidResponse, options: { clickUrl: 'https://click.example.com' } });
+        expect(bidResponse.clickUrl).to.eql('https://click.example.com');
+        sinon.assert.called(doRenderStub);
+      });
 
       describe('should emit AD_RENDER_FAILED', () => {
         it('when bidResponse is missing', () => {
@@ -489,6 +742,22 @@ describe('adRendering', () => {
         it('should skip rendering if suppressStaleRender', () => {
           config.setConfig({ auctionOptions: { suppressStaleRender: true } });
           handleRender({ adId, bidResponse });
+          sinon.assert.notCalled(doRenderStub);
+        });
+        it('preserves click and view URLs when a repeated render is suppressed', () => {
+          bidResponse.clickUrl = 'https://first.example/click';
+          bidResponse.viewUrl = 'https://first.example/view';
+          config.setConfig({ auctionOptions: { suppressStaleRender: true } });
+          handleRender({
+            adId,
+            bidResponse,
+            options: {
+              clickUrl: 'https://second.example/click',
+              viewUrl: 'https://second.example/view'
+            }
+          });
+          expect(bidResponse.clickUrl).to.equal('https://first.example/click');
+          expect(bidResponse.viewUrl).to.equal('https://first.example/view');
           sinon.assert.notCalled(doRenderStub);
         });
       });
@@ -714,6 +983,21 @@ describe('adRendering', () => {
       sinon.assert.calledWith(events.emit, EVENTS.AD_RENDER_SUCCEEDED, sinon.match({ bid }));
     });
 
+    it('emits an observed click only when tracking is enabled for banners', () => {
+      sandbox.stub(userActivation, 'hasBeenActive').returns(true);
+      bid.adId = 'click-id';
+      bid.adUnitCode = 'banner-slot';
+      bid.bidder = 'test';
+      bid.mediaType = 'banner';
+      config.setConfig({ bidClickTracking: { enabled: true } });
+      handleCreativeEvent({ event: EVENTS.BID_CLICK, method: 'creativeClick' }, bid);
+      sinon.assert.calledWith(events.emit, EVENTS.BID_CLICK, sinon.match({ adId: 'click-id', method: 'creativeClick' }));
+      events.emit.resetHistory();
+      config.setConfig({ bidClickTracking: { enabled: false } });
+      handleCreativeEvent({ event: EVENTS.BID_CLICK, method: 'creativeClick' }, bid);
+      sinon.assert.notCalled(events.emit);
+    });
+
     it('logs an error on other events', () => {
       handleCreativeEvent({ event: 'unsupported' }, bid);
       sinon.assert.called(utils.logError);
@@ -728,6 +1012,35 @@ describe('adRendering', () => {
         bid = {
           adId: '123'
         };
+      });
+
+      it('reports the native click event once, preserves the asset ID, and fires bidder trackers on every click', () => {
+        bid.mediaType = 'native';
+        bid.bidder = 'nativeBidder';
+        bid.native = { clickUrl: 'https://advertiser.example/landing' };
+        const fireTrackers = sinon.stub();
+        const emit = sandbox.stub(events, 'emit');
+        config.setConfig({ bidClickTracking: { enabled: true, fireTrackers: true } });
+        const click = { action: 'click', assetId: 3 };
+        handleNativeMessage(click, bid, { fireTrackers });
+        handleNativeMessage(click, bid, { fireTrackers });
+        sinon.assert.calledTwice(fireTrackers);
+        sinon.assert.alwaysCalledWithExactly(fireTrackers, click, bid);
+        sinon.assert.calledOnceWithExactly(emit, EVENTS.BID_CLICK, sinon.match({ method: 'nativeClick', assetId: 3, adId: '123' }));
+        config.setConfig({ bidClickTracking: { enabled: false } });
+      });
+
+      it('reports every native click event when deduplication is explicitly disabled', () => {
+        bid.mediaType = 'native';
+        bid.native = { clickUrl: 'https://advertiser.example/landing' };
+        const fireTrackers = sinon.stub();
+        sandbox.stub(events, 'emit');
+        config.setConfig({ bidClickTracking: { enabled: true, dedupeNativeClicks: false } });
+        handleNativeMessage({ action: 'click' }, bid, { fireTrackers });
+        handleNativeMessage({ action: 'click' }, bid, { fireTrackers });
+        sinon.assert.calledTwice(fireTrackers);
+        sinon.assert.calledTwice(events.emit);
+        config.setConfig({ bidClickTracking: { enabled: false } });
       });
 
       it('should resize', () => {
