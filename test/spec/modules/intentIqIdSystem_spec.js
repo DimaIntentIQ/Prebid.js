@@ -18,6 +18,7 @@ import { clearAllCookies } from '../../helpers/cookies.js';
 import { detectBrowser, detectBrowserFromUserAgent, detectBrowserFromUserAgentData } from '../../../libraries/intentIqUtils/detectBrowserUtils.js';
 import { APS_EIDS_KEY, CLIENT_HINTS_KEY, FIRST_PARTY_KEY, PREBID, WITH_IIQ, WITHOUT_IIQ } from '../../../libraries/intentIqConstants/intentIqConstants.js';
 import { decryptData, encryptData } from '../../../libraries/intentIqUtils/cryptionUtils.js';
+import { highEntropyValuesAccessor } from '../../../src/fpd/sua.js';
 
 const partner = 10;
 const pai = '11';
@@ -2238,8 +2239,8 @@ describe('IntentIQ tests', function () {
       const raw = localStorage.getItem(APS_EIDS_KEY);
       return raw ? JSON.parse(decryptData(raw)).eids : null;
     };
-    const respondWith = async (responseData) => {
-      const submoduleCallback = intentIqIdSubmodule.getId(defaultConfigParams).callback;
+    const respondWith = async (responseData, config = defaultConfigParams) => {
+      const submoduleCallback = intentIqIdSubmodule.getId(config).callback;
       submoduleCallback(sinon.spy());
       await waitForClientHints();
       server.requests[0].respond(200, responseHeader, JSON.stringify(responseData));
@@ -2249,6 +2250,13 @@ describe('IntentIQ tests', function () {
       await respondWith({ data: { eids: [iiqEid, ttdEid] }, ls: true });
 
       expect(readApsEids()).to.deep.equal([iiqEid, ttdEid]);
+    });
+
+    it('should save eids only to cookie when partner allows only cookie storage', async function () {
+      await respondWith({ data: { eids: [iiqEid, ttdEid] }, ls: true }, { ...defaultConfigParams, enabledStorageTypes: ['cookie'] });
+
+      expect(readApsEids()).to.equal(null);
+      expect(JSON.parse(decryptData(storage.getCookie(APS_EIDS_KEY))).eids).to.deep.equal([iiqEid, ttdEid]);
     });
 
     it('should merge with eids already stored by another partner, incoming eid wins on source collision', async function () {
@@ -2292,6 +2300,14 @@ describe('IntentIQ tests', function () {
       await respondWith({ isOptedOut: true, tc: 41 });
 
       expect(localStorage.getItem(APS_EIDS_KEY)).to.be.null;
+    });
+
+    it('should remove APS shared storage from cookie when partner allows only cookie and server responds with opt out', async function () {
+      storage.setCookie(APS_EIDS_KEY, encryptData(JSON.stringify({ eids: [iiqEid] })), new Date(Date.now() + 60000).toUTCString(), 'Lax');
+
+      await respondWith({ isOptedOut: true, tc: 41 }, { ...defaultConfigParams, enabledStorageTypes: ['cookie'] });
+
+      expect(storage.getCookie(APS_EIDS_KEY)).to.not.be.ok;
     });
 
     it('should not save eids without source to APS shared storage', async function () {

@@ -418,11 +418,11 @@ function storeCounters(allowedStorage: any, partnerData: any): void {
   storeData(PARTNER_DATA_KEY, JSON.stringify(partnerData), allowedStorage, firstPartyData);
 }
 
-function saveEidsToApsSharedStorage(eids: any, firstPartyData: any): void {
+function saveEidsToApsSharedStorage(eids: any, allowedStorage: AllowedStorageType[], firstPartyData: any): void {
   try {
     if (!Array.isArray(eids) || !eids.length) return;
 
-    const existingAps = readData(APS_EIDS_KEY, ['html5']);
+    const existingAps = readData(APS_EIDS_KEY, allowedStorage);
     let existingEids: any[] = [];
     if (existingAps) {
       const parsed = tryParse(decryptData(existingAps)) as any;
@@ -435,7 +435,7 @@ function saveEidsToApsSharedStorage(eids: any, firstPartyData: any): void {
 
     const mergedEids = Object.keys(eidsBySource).map((source) => eidsBySource[source]);
     if (!mergedEids.length) return;
-    storeData(APS_EIDS_KEY, encryptData(JSON.stringify({ eids: mergedEids })), ['html5'], firstPartyData);
+    storeData(APS_EIDS_KEY, encryptData(JSON.stringify({ eids: mergedEids })), allowedStorage, firstPartyData);
   } catch (error) {
     logError(MODULE_NAME + ': Failed to save eids to APS shared storage', error);
   }
@@ -662,7 +662,7 @@ export const intentIqIdSubmodule = {
       return;
     }
 
-    saveEidsToApsSharedStorage(runtimeEids?.eids, firstPartyData);
+    saveEidsToApsSharedStorage(runtimeEids?.eids, allowedStorage, firstPartyData);
 
     if (!shouldCallServer) {
       firePartnerCallback();
@@ -742,7 +742,7 @@ export const intentIqIdSubmodule = {
                 // Remove client hints entirely; partner data is rewritten below with
                 // only terminationCause persisted (handled by storeData when opted out).
                 removeDataByKey(CLIENT_HINTS_KEY, allowedStorage);
-                removeDataByKey(APS_EIDS_KEY, ['html5']);
+                removeDataByKey(APS_EIDS_KEY, allowedStorage);
 
                 storeData(FIRST_PARTY_KEY_FINAL, JSON.stringify(firstPartyData), allowedStorage, firstPartyData);
                 storeData(PARTNER_DATA_KEY, JSON.stringify(partnerData), allowedStorage, firstPartyData);
@@ -802,7 +802,7 @@ export const intentIqIdSubmodule = {
 
             if (respJson.data?.eids) {
               runtimeEids = respJson.data;
-              saveEidsToApsSharedStorage(runtimeEids.eids, firstPartyData);
+              saveEidsToApsSharedStorage(runtimeEids.eids, allowedStorage, firstPartyData);
               callback(respJson.data.eids);
               firePartnerCallback();
               const encryptedData = encryptData(JSON.stringify(respJson.data));
