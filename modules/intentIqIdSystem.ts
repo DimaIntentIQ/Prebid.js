@@ -27,7 +27,7 @@ import {
   FIRST_PARTY_KEY,
   GVLID,
   VERSION, INVALID_ID, SYNC_REFRESH_MILL, META_DATA_CONSTANT, PREBID,
-  HOURS_72, CH_KEYS, DEFAULT_PERCENTAGE, WITH_IIQ
+  HOURS_72, CH_KEYS, DEFAULT_PERCENTAGE, WITH_IIQ, PARTNER_CLIENT_ID_TYPE
 } from '../libraries/intentIqConstants/intentIqConstants.ts';
 import { SYNC_KEY } from '../libraries/intentIqUtils/getSyncKey.ts';
 import { getIiqServerAddress, iiqPixelServerAddress } from '../libraries/intentIqUtils/intentIqConfig.ts';
@@ -40,6 +40,15 @@ import { setKeyValueOn } from '../libraries/gptUtils/gptUtils.js';
 import type { UserIdConfig } from './userId/spec.ts';
 
 export type IntentIqIdSystemModuleName = 'intentIqId';
+
+export type IntentIqPartnerClientIdType = typeof PARTNER_CLIENT_ID_TYPE[keyof typeof PARTNER_CLIENT_ID_TYPE];
+
+export type IntentIqThirdPartyId = {
+  /** IntentIQ dummy ID of the third-party partner: a number or a string of digits. */
+  '3rddpi': number | string;
+  /** User ID on that partner. */
+  '3rdpcid': string;
+};
 
 export type IntentIqIdSystemParams = {
   /**
@@ -139,15 +148,28 @@ export type IntentIqIdSystemParams = {
   chTimeout?: number;
 
   /**
-   * Partner-supplied first-party client identifier.
+   * Partner-supplied user identifier. Its meaning is set by `partnerClientIdType`.
    */
   partnerClientId?: string;
 
   /**
-   * Type code for `partnerClientId`. Must be a positive integer recognised
-   * by the IntentIQ server.
+   * Type of `partnerClientId`:
+   * - `0` – partner's own first-party user ID (default when omitted)
+   * - `1` – IDFV (iOS Identifier for Vendor)
+   * - `3` – IDFV sent together with a MAID (`partnerClientMaid`); without one it is sent as type `1`
+   * - `4` – MAID / AAID
    */
-  partnerClientIdType?: number;
+  partnerClientIdType?: IntentIqPartnerClientIdType;
+
+  /**
+   * MAID / AAID. Used only with `partnerClientIdType: 3`.
+   */
+  partnerClientMaid?: string;
+
+  /**
+   * User IDs from third-party platforms. Contact IntentIQ for the platform IDs.
+   */
+  thirdPartyIds?: IntentIqThirdPartyId[];
 
   /**
    * Partner-supplied Advertiser ID
@@ -231,21 +253,53 @@ function appendFirstPartyData(url: string, firstPartyData: any, partnerData: any
   return url;
 }
 
-function verifyIdType(value: number): number {
-  if (value === 0 || value === 1 || value === 3 || value === 4) return value;
-  return -1;
+const SUPPORTED_ID_TYPES = new Set<unknown>(Object.values(PARTNER_CLIENT_ID_TYPE));
+
+function toIdString(value: unknown): string {
+  const str = typeof value === 'number' && Number.isFinite(value) ? String(value) : value;
+  if (typeof str !== 'string' || str === '' || str === '0') return '';
+  return str;
+}
+
+function toDummyId(value: unknown): number | string | null {
+  const str = typeof value === 'number' ? String(value) : value;
+  if (typeof str !== 'string' || !/^\d+$/.test(str) || /^0+$/.test(str)) return null;
+  const num = Number(str);
+  // longer digit strings would lose precision as a JSON number; PE accepts them as text
+  return Number.isSafeInteger(num) ? num : str;
 }
 
 function appendPartnersFirstParty(url: string, configParams: any): string {
-  const partnerClientId = typeof configParams.partnerClientId === 'string' ? encodeURIComponent(configParams.partnerClientId) : '';
-  const partnerClientIdType = typeof configParams.partnerClientIdType === 'number' ? verifyIdType(configParams.partnerClientIdType) : -1;
+  const partnerClientId = toIdString(configParams.partnerClientId);
+  let idType = configParams.partnerClientIdType ?? PARTNER_CLIENT_ID_TYPE.FIRST_PARTY;
+  if (!partnerClientId || !SUPPORTED_ID_TYPES.has(idType)) return url;
 
-  if (partnerClientIdType === -1) return url;
-  if (partnerClientId !== '') {
-    url = url + '&pcid=' + partnerClientId;
-    url = url + '&idtype=' + partnerClientIdType;
+  if (idType === PARTNER_CLIENT_ID_TYPE.IDFV_WITH_MAID) {
+    const maid = toIdString(configParams.partnerClientMaid);
+    if (maid) {
+      url += '&did=' + encodeURIComponent(maid);
+    } else {
+      idType = PARTNER_CLIENT_ID_TYPE.IDFV;
+    }
   }
-  return url;
+  return url + '&pcid=' + encodeURIComponent(partnerClientId) + '&idtype=' + idType;
+}
+
+function appendThirdPartyIds(url: string, thirdPartyIds: unknown): string {
+  if (!Array.isArray(thirdPartyIds)) return url;
+  const pairs: IntentIqThirdPartyId[] = [];
+  const seen = new Set<string>();
+
+  for (const item of thirdPartyIds) {
+    const dpi = toDummyId(item?.['3rddpi']);
+    const pcid = toIdString(item?.['3rdpcid']);
+    if (dpi === null || !pcid) continue;
+    const key = dpi + '|' + pcid;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    pairs.push({ '3rddpi': dpi, '3rdpcid': pcid });
+  }
+  return pairs.length ? url + '&3rdpartyPairs=' + encodeURIComponent(JSON.stringify(pairs)) : url;
 }
 
 function appendCMPData(url: string, cmpData: any): string {
@@ -310,8 +364,8 @@ export function createPixelUrl(firstPartyData: any, clientHints: string, configP
   url += '&dpi=' + configParams.partner;
   url = appendFirstPartyData(url, firstPartyData, partnerData);
   url = appendPartnersFirstParty(url, configParams);
+  url = appendThirdPartyIds(url, configParams.thirdPartyIds);
   url = addUniquenessToUrl(url);
-  url += partnerData?.clientType ? '&idtype=' + partnerData.clientType : '';
   url += VERSION ? '&jsver=' + VERSION : '';
   if (clientHints) url += '&uh=' + encodeURIComponent(clientHints);
   url = appendVrrefAndFui(url, configParams.domainName);
@@ -677,6 +731,7 @@ export const intentIqIdSubmodule = {
     url += configParams.pai ? '&pai=' + encodeURIComponent(configParams.pai) : '';
     url = appendFirstPartyData(url, firstPartyData, partnerData);
     url = appendPartnersFirstParty(url, configParams);
+    url = appendThirdPartyIds(url, configParams.thirdPartyIds);
     url += (partnerData.cttl) ? '&cttl=' + encodeURIComponent(partnerData.cttl) : '';
     url += (partnerData.rrtt) ? '&rrtt=' + encodeURIComponent(partnerData.rrtt) : '';
     url = appendCMPData(url, cmpData);

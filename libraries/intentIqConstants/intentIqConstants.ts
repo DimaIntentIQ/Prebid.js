@@ -41,6 +41,13 @@ export const CH_KEYS = [
   "fullVersionList",
 ];
 
+export const PARTNER_CLIENT_ID_TYPE = {
+  FIRST_PARTY: 0,
+  IDFV: 1,
+  IDFV_WITH_MAID: 3,
+  MAID: 4,
+} as const;
+
 export const AB_CONFIG_SOURCE = {
   PERCENTAGE: "percentage",
   GROUP: "group",
