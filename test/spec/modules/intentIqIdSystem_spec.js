@@ -1646,6 +1646,149 @@ describe('IntentIQ tests', function () {
     expect(isCMPStringTheSame(fpData, cmpData)).to.be.false;
   });
 
+  describe('partner client id and third-party ids', function () {
+    const baseParams = { partner: 10, domainName: 'example.com' };
+    const pixelUrl = (params) => createPixelUrl({}, undefined, { ...baseParams, ...params }, {}, {});
+    const pairsFrom = (url) => {
+      const match = url.match(/&3rdpartyPairs=([^&]*)/);
+      return match ? JSON.parse(decodeURIComponent(match[1])) : null;
+    };
+
+    it('sends partnerClientId as type 0 when partnerClientIdType is omitted', function () {
+      const url = pixelUrl({ partnerClientId: 'abc' });
+      expect(url).to.include('&pcid=abc&idtype=0');
+    });
+
+    it('sends type 0 and type 1 as configured', function () {
+      expect(pixelUrl({ partnerClientId: 'abc', partnerClientIdType: 0 })).to.include('&pcid=abc&idtype=0');
+      expect(pixelUrl({ partnerClientId: 'idfv', partnerClientIdType: 1 })).to.include('&pcid=idfv&idtype=1');
+    });
+
+    it('sends type 4 as pcid without did', function () {
+      const url = pixelUrl({ partnerClientId: 'maid', partnerClientIdType: 4, partnerClientMaid: 'ignored' });
+      expect(url).to.include('&pcid=maid&idtype=4');
+      expect(url).to.not.include('&did=');
+    });
+
+    it('sends MAID as did and IDFV as pcid for type 3', function () {
+      const url = pixelUrl({ partnerClientId: 'idfv', partnerClientIdType: 3, partnerClientMaid: 'maid 1' });
+      expect(url).to.include('&did=maid%201&pcid=idfv&idtype=3');
+    });
+
+    it('sends type 3 without a MAID as IDFV (type 1)', function () {
+      const url = pixelUrl({ partnerClientId: 'idfv', partnerClientIdType: 3 });
+      expect(url).to.include('&pcid=idfv&idtype=1');
+      expect(url).to.not.include('&did=');
+    });
+
+    it('ignores partnerClientMaid for types other than 3', function () {
+      const url = pixelUrl({ partnerClientId: 'idfv', partnerClientIdType: 1, partnerClientMaid: 'maid' });
+      expect(url).to.include('&pcid=idfv&idtype=1');
+      expect(url).to.not.include('&did=');
+    });
+
+    it('accepts a numeric partnerClientId', function () {
+      expect(pixelUrl({ partnerClientId: 12345, partnerClientIdType: 0 })).to.include('&pcid=12345&idtype=0');
+    });
+
+    [2, 5, -1, 'wrong', 1.5].forEach((partnerClientIdType) => {
+      it(`does not send pcid for unsupported partnerClientIdType ${JSON.stringify(partnerClientIdType)}`, function () {
+        const url = pixelUrl({ partnerClientId: 'abc', partnerClientIdType, partnerClientMaid: 'maid' });
+        expect(url).to.not.include('&pcid=');
+        expect(url).to.not.include('&idtype=');
+        expect(url).to.not.include('&did=');
+      });
+    });
+
+    ['', '0', 0, null, undefined].forEach((partnerClientId) => {
+      it(`does not send pcid for empty or zero partnerClientId ${JSON.stringify(partnerClientId)}`, function () {
+        const url = pixelUrl({ partnerClientId, partnerClientIdType: 3, partnerClientMaid: 'maid' });
+        expect(url).to.not.include('&pcid=');
+        expect(url).to.not.include('&idtype=');
+        expect(url).to.not.include('&did=');
+      });
+    });
+
+    it('does not send idtype from the server client type on the pixel', function () {
+      const url = createPixelUrl({}, undefined, { ...baseParams, partnerClientId: 'abc', partnerClientIdType: 1 }, { clientType: 2 }, {});
+      expect(url.match(/&idtype=/g)).to.have.length(1);
+      expect(url).to.include('&idtype=1');
+    });
+
+    it('does not send idtype when only the server client type is known', function () {
+      const url = createPixelUrl({}, undefined, baseParams, { clientType: 2 }, {});
+      expect(url).to.not.include('&idtype=');
+    });
+
+    it('sends third-party ids as one JSON param, in the given order', function () {
+      const url = pixelUrl({
+        thirdPartyIds: [{ '3rddpi': 2051551071, '3rdpcid': 'abc123' }, { '3rddpi': '53', '3rdpcid': 'xyz789' }]
+      });
+      expect(url).to.include('&3rdpartyPairs=' + encodeURIComponent('[{"3rddpi":2051551071,"3rdpcid":"abc123"},{"3rddpi":53,"3rdpcid":"xyz789"}]'));
+      expect(url).to.not.match(/&3rddpi=|&3rdpcid=/);
+    });
+
+    it('skips incomplete, invalid and repeated pairs', function () {
+      const url = pixelUrl({
+        thirdPartyIds: [
+          { '3rddpi': 1, '3rdpcid': 'a' },
+          { '3rddpi': 2 },
+          { '3rdpcid': 'b' },
+          { '3rddpi': 'abc', '3rdpcid': 'c' },
+          { '3rddpi': 0, '3rdpcid': 'd' },
+          { '3rddpi': 1.5, '3rdpcid': 'e' },
+          { '3rddpi': 3, '3rdpcid': '' },
+          null,
+          'junk',
+          { '3rddpi': '1', '3rdpcid': 'a' },
+          { '3rddpi': 1, '3rdpcid': 'other' }
+        ]
+      });
+      expect(pairsFrom(url)).to.deep.equal([
+        { '3rddpi': 1, '3rdpcid': 'a' },
+        { '3rddpi': 1, '3rdpcid': 'other' }
+      ]);
+    });
+
+    it('keeps platform ids that do not fit a safe integer as text', function () {
+      const url = pixelUrl({ thirdPartyIds: [{ '3rddpi': '12345678901234567890', '3rdpcid': 'a' }] });
+      expect(pairsFrom(url)).to.deep.equal([{ '3rddpi': '12345678901234567890', '3rdpcid': 'a' }]);
+    });
+
+    it('sends every valid pair, without a count limit', function () {
+      const thirdPartyIds = Array.from({ length: 25 }, (_, i) => ({ '3rddpi': i + 1, '3rdpcid': 'u' + i }));
+      const pairs = pairsFrom(pixelUrl({ thirdPartyIds }));
+      expect(pairs).to.have.length(25);
+      expect(pairs[24]).to.deep.equal({ '3rddpi': 25, '3rdpcid': 'u24' });
+    });
+
+    it('does not send the param when no pair is valid or thirdPartyIds is not an array', function () {
+      expect(pixelUrl({ thirdPartyIds: [{ '3rddpi': 1 }] })).to.not.include('3rdpartyPairs');
+      expect(pixelUrl({ thirdPartyIds: { '3rddpi': 1, '3rdpcid': 'a' } })).to.not.include('3rdpartyPairs');
+      expect(pixelUrl({})).to.not.include('3rdpartyPairs');
+    });
+
+    it('sends type 3 ids and third-party ids in AT=39', async function () {
+      const configParams = {
+        params: {
+          ...allConfigParams.params,
+          partnerClientId: 'idfv',
+          partnerClientIdType: 3,
+          partnerClientMaid: 'maid',
+          thirdPartyIds: [{ '3rddpi': 53, '3rdpcid': 'xyz789' }]
+        }
+      };
+      const submoduleCallback = intentIqIdSubmodule.getId(configParams).callback;
+      submoduleCallback(sinon.spy());
+      await waitForClientHints();
+
+      const request = server.requests[0];
+      expect(request.url).to.include('?at=39');
+      expect(request.url).to.include('&did=maid&pcid=idfv&idtype=3');
+      expect(pairsFrom(request.url)).to.deep.equal([{ '3rddpi': 53, '3rdpcid': 'xyz789' }]);
+    });
+  });
+
   describe('appendCMPData via createPixelUrl', function () {
     const baseParams = { partner: 'testPartner', domainName: 'example.com' };
 
@@ -1802,8 +1945,8 @@ describe('IntentIQ tests', function () {
     expect(request.url).to.include(`&idtype=${partnerClientIdType}`);
   });
 
-  it('should NOT send pcid and idtype in AT=20 if partnerClientId is NOT a string', async function () {
-    const partnerClientId = 123;
+  it('should NOT send pcid and idtype in AT=20 if partnerClientId is neither a string nor a number', async function () {
+    const partnerClientId = { id: 123 };
     const partnerClientIdType = 0;
     const configParams = { params: { ...allConfigParams.params, browserBlackList: 'chrome', partnerClientId, partnerClientIdType } };
 
@@ -1846,8 +1989,8 @@ describe('IntentIQ tests', function () {
     expect(request.url).to.include(`&idtype=${partnerClientIdType}`);
   });
 
-  it('should NOT send partnerClientId and partnerClientIdType in AT=39 if partnerClientId is not a string', async function () {
-    const partnerClientId = 123;
+  it('should NOT send partnerClientId and partnerClientIdType in AT=39 if partnerClientId is neither a string nor a number', async function () {
+    const partnerClientId = true;
     const partnerClientIdType = 0;
     const callBackSpy = sinon.spy();
     const configParams = { params: { ...allConfigParams.params, partnerClientId, partnerClientIdType } };
